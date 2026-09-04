@@ -138,4 +138,21 @@ public class UserService {
                 .message("打卡成功！已為您更新安全狀態，祝您平安順心。")
                 .build();
     }
+
+    /**
+     * 測試與驗證用：手動將指定使用者的最後活躍時間倒退特定小時數 (例如 25 小時)
+     */
+    @Transactional
+    public UserResponse simulateOverdue(UUID userId, long hoursAgo) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到該使用者"));
+
+        user.setLastActiveAt(LocalDateTime.now().minusHours(hoursAgo));
+        user.setSafetyStatus(SafetyStatus.SAFE);
+        User savedUser = userRepository.save(user);
+
+        log.info("🧪 [測試模式] 已將使用者 [{}] 的最後活躍時間調回 {} 小時前: {}", 
+                user.getNickname(), hoursAgo, user.getLastActiveAt());
+        return UserResponse.fromEntity(savedUser);
+    }
 }

@@ -44,4 +44,12 @@ public class UserController {
         UserCheckInResponse response = userService.checkIn(id, request);
         return ResponseEntity.ok(response);
     }
+
+    @PostMapping("/{id}/simulate-overdue")
+    public ResponseEntity<UserResponse> simulateOverdue(
+            @PathVariable UUID id,
+            @RequestParam(defaultValue = "25") long hours) {
+        UserResponse response = userService.simulateOverdue(id, hours);
+        return ResponseEntity.ok(response);
+    }
 }

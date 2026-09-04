@@ -28,6 +28,7 @@ fun HomeScreen(
     state: MainUiState,
     onCheckIn: () -> Unit,
     onRefresh: () -> Unit,
+    onTriggerWorkManager: () -> Unit,
     onLogout: () -> Unit
 ) {
     Scaffold(
@@ -191,6 +192,22 @@ fun HomeScreen(
                     fontSize = 12.sp,
                     color = Slate500
                 )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // WorkManager 背景定時心跳按鈕
+            OutlinedButton(
+                onClick = onTriggerWorkManager,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Slate700)
+            ) {
+                Icon(Icons.Default.Bolt, null, modifier = Modifier.size(18.dp), tint = AccentBlue)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("測試 WorkManager 背景心跳 (每12小時自動)", fontSize = 13.sp)
             }
 
             Spacer(modifier = Modifier.height(16.dp))

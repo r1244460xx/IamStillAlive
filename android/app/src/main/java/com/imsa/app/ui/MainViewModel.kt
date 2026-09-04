@@ -48,6 +48,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 safetyStatus = session.safetyStatus ?: "SAFE",
                 nextDeadline = session.nextDeadline
             )
+            com.imsa.app.worker.SafetyCheckInWorker.schedulePeriodicHeartbeat(getApplication())
             refreshData()
         } else {
             _uiState.value = _uiState.value.copy(isLoggedIn = false)
@@ -75,6 +76,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 if (resp.isSuccessful && resp.body() != null) {
                     val user = resp.body()!!
                     session.saveUser(user)
+                    com.imsa.app.worker.SafetyCheckInWorker.schedulePeriodicHeartbeat(getApplication())
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         isLoggedIn = true,
@@ -186,6 +188,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) {
             // Ignore
         }
+    }
+
+    fun triggerBackgroundHeartbeat() {
+        com.imsa.app.worker.SafetyCheckInWorker.triggerImmediateHeartbeat(getApplication())
+        _uiState.value = _uiState.value.copy(message = "⚡ 已觸發 WorkManager 背景心跳打卡！")
     }
 
     fun logout() {

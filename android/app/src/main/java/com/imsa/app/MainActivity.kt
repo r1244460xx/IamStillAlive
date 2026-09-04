@@ -44,6 +44,7 @@ class MainActivity : ComponentActivity() {
                                 state = state,
                                 onCheckIn = { viewModel.checkIn() },
                                 onRefresh = { viewModel.refreshData() },
+                                onTriggerWorkManager = { viewModel.triggerBackgroundHeartbeat() },
                                 onLogout = { viewModel.logout() }
                             )
                         } else {
