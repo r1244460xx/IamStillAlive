@@ -29,6 +29,15 @@ data class UserResponse(
     val lastActiveAt: String?
 )
 
+data class UserUpdateRequest(
+    val nickname: String,
+    val gender: String, // MALE, FEMALE, OTHER
+    val birthdate: String, // yyyy-MM-dd
+    val email: String? = null,
+    val nationalId: String? = null,
+    val emergencyContactPhone: String? = null
+)
+
 data class UserCheckInRequest(
     val location: String? = null,
     val ipAddress: String? = null,

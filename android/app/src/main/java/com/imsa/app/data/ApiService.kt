@@ -6,8 +6,10 @@ import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Path
 import java.util.concurrent.TimeUnit
 
@@ -19,6 +21,12 @@ interface ImsaApiService {
     @GET("api/users/{id}")
     suspend fun getUserProfile(@Path("id") id: String): Response<UserResponse>
 
+    @PUT("api/users/{id}")
+    suspend fun updateUserProfile(
+        @Path("id") id: String,
+        @Body request: UserUpdateRequest
+    ): Response<UserResponse>
+
     @POST("api/users/{id}/check-in")
     suspend fun checkIn(
         @Path("id") id: String,
@@ -27,6 +35,9 @@ interface ImsaApiService {
 
     @GET("api/login-records/user/{userId}")
     suspend fun getLoginRecords(@Path("userId") userId: String): Response<List<LoginRecordResponse>>
+
+    @DELETE("api/login-records/{id}")
+    suspend fun deleteLoginRecord(@Path("id") id: String): Response<Unit>
 
     companion object {
         // 10.0.2.2 為 Android 模擬器訪問本機電腦 localhost 的專用 IP
