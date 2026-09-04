@@ -22,14 +22,17 @@ class SafetyCheckInWorker(
             return Result.success()
         }
 
-        Log.i("SafetyCheckInWorker", "🚀 [WorkManager] 正在執行背景定時心跳打卡 (User: $userId)...")
+        val remark = inputData.getString(KEY_REMARK) ?: "系統背景定時心跳包報平安 (無感守護)"
+        val networkType = inputData.getString(KEY_NETWORK_TYPE) ?: "WorkManager"
+
+        Log.i("SafetyCheckInWorker", "🚀 [WorkManager] 正在執行背景心跳打卡 (User: $userId, 類型: $networkType)...")
 
         return try {
             val api = ImsaApiService.create()
             val request = UserCheckInRequest(
                 deviceInfo = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
-                networkType = "WorkManager",
-                remark = "系統背景定時心跳包報平安 (無感守護)"
+                networkType = networkType,
+                remark = remark
             )
             val response = api.checkIn(userId, request)
 
@@ -51,6 +54,8 @@ class SafetyCheckInWorker(
 
     companion object {
         private const val WORK_NAME = "imsa_safety_heartbeat"
+        const val KEY_REMARK = "key_remark"
+        const val KEY_NETWORK_TYPE = "key_network_type"
 
         /**
          * 排定每 12 小時定時執行的背景心跳打卡
@@ -73,19 +78,29 @@ class SafetyCheckInWorker(
         }
 
         /**
-         * 測試用：立即觸發一次背景 Worker 打卡
+         * 立即觸發一次背景 Worker 打卡
          */
-        fun triggerImmediateHeartbeat(context: Context) {
+        fun triggerImmediateHeartbeat(
+            context: Context,
+            remark: String = "手動背景心跳打卡",
+            networkType: String = "WorkManager"
+        ) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
 
+            val data = workDataOf(
+                KEY_REMARK to remark,
+                KEY_NETWORK_TYPE to networkType
+            )
+
             val oneTimeRequest = OneTimeWorkRequestBuilder<SafetyCheckInWorker>()
                 .setConstraints(constraints)
+                .setInputData(data)
                 .build()
 
             WorkManager.getInstance(context).enqueue(oneTimeRequest)
-            Log.i("SafetyCheckInWorker", "⚡ 已手動派發單次背景 Worker 任務")
+            Log.i("SafetyCheckInWorker", "⚡ 已派發單次背景 Worker 任務 (備註: $remark, 類型: $networkType)")
         }
     }
 }
