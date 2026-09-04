@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">IMSA 健在守護</string>
+    <string name="accessibility_service_name">IMSA 單身平安守護服務</string>
+    <string name="accessibility_service_description">即使 App 關閉，本服務會在裝置每次解鎖時自動向守護中心報平安，確保您平安無事，完全不佔用通知欄。</string>
 </resources>
