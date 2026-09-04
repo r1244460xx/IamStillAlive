@@ -210,8 +210,67 @@
           ( ALERTED ) ────────────────────────┘
               │
               ↓
-    後續排程掃描時直接略過 (防止重複洗版)
 ```
 1. **第一次逾期**：發送警報 Log（若有設定緊急電話則印出通知緊急聯絡人），並將狀態改為 `ALERTED`。
 2. **持續逾期**：排程器再次掃描時，因為狀態為 `ALERTED`，直接略過通報，防止瘋狂洗版。
 3. **重新打卡**：使用者呼叫一鍵打卡 (`check-in`) 或建立新紀錄時，系統自動將狀態重置回 `SAFE`。
+
+---
+
+## 4. Android 用戶端架構與背景守護實作規格 (Android Client Specifications)
+
+IMSA Android 應用採用 Google 官方推薦之現代化架構（Modern Android Architecture），結合 Jetpack Compose、MVVM 模式與雙軌背景守護機制，確保在各種極端情境（如 App 被手動滑掉、手機重開機等）下皆能穩定維持無感報平安功能。
+
+### 4.1 前後端 API 規格對接與覆蓋率矩陣
+
+| API 端點 (依據章節 2) | HTTP 方法 | Android 接口方法 (`ImsaApiService`) | Android 端對接狀態與調用時機 |
+| :--- | :--- | :--- | :--- |
+| `/api/users/register` | `POST` | `register(request)` | ✅ **已對接**：註冊畫面填寫表單完成後呼叫，成功後即時儲存 Session 並啟動守護。 |
+| `/api/users/{id}` | `GET` | `getUserProfile(id)` | ✅ **已對接**：進入首頁或手動重新整理時同步用戶最新資訊與狀態。 |
+| `/api/users/{id}` | `PUT` | `updateUserProfile(id, request)` | ✅ **介面已就緒**：資料層支援修改個人檔案與緊急聯絡人。 |
+| `/api/users/{id}/check-in` | `POST` | `checkIn(id, request)` | ✅ **核心打卡端點**：由首頁「一鍵報平安」大圓圈、WorkManager 心跳與螢幕解鎖守護服務共同調用。 |
+| `/api/login-records/user/{userId}` | `GET` | `getLoginRecords(userId)` | ✅ **已對接**：首頁「近期打卡紀錄」列表資料來源，按時間倒序顯示最近打卡。 |
+| `/api/login-records/{id}` | `DELETE` | `deleteLoginRecord(id)` | ✅ **介面已就緒**：底層登入紀錄單筆刪除功能。 |
+| `/api/login-records` (通用 CRUD) | `POST`/`PUT`/`GET` | *(由語意端點替代)* | 由專屬的 `/check-in` 語意端點封裝，自動更新 `lastActiveAt` 並重置為 `SAFE`。 |
+
+---
+
+### 4.2 雙軌背景自動報平安守護系統 (Two-tier Background Heartbeat)
+
+為達成**「使用者完全無需開 App，甚至即使把 App 從最近任務滑除手動殺掉，也能在日常使用手機時自動報平安」**之核心承諾，Android 端實作了雙軌背景機制：
+
+#### 軌道一：WorkManager 週期性心跳保底 (`SafetyCheckInWorker`)
+* **執行週期**：每 12 小時自動排程觸發一次。
+* **約束條件**：要求網路連線可用 (`NetworkType.CONNECTED`)。
+* **運作機制**：在背景靜默發送 `POST /api/users/{id}/check-in`，備註標註為 `系統背景定時心跳包報平安 (無感守護)`，將後端安全截止時間持續向後展延 24 小時。
+
+#### 軌道二：系統級無障礙常駐守護進程 (`SafetyGuardianAccessibilityService`)
+* **系統綁定機制**：註冊於 Android OS 無障礙服務架構（`android.permission.BIND_ACCESSIBILITY_SERVICE`），由 Android 系統伺服器（`system_server`）直接持有並管理 Service 生命週期。
+* **抗殺進程 (Survive Task Kill)**：當使用者手動將主 App 從 Recent Tasks 卡片向上滑動銷毀時，系統僅銷毀 Activity 視圖，無障礙守護進程維持 `PROC_STATE_PERSISTENT` 常駐狀態，完全不受影響。
+* **螢幕解鎖動態監聽**：動態註冊廣播接收器監聽系統級意圖：
+  * `Intent.ACTION_USER_PRESENT`：有鎖定密碼/圖形時，使用者解鎖進入手機觸發。
+  * `Intent.ACTION_SCREEN_ON` (搭配 `!keyguardManager.isKeyguardLocked`)：無設密碼時，點亮螢幕即觸發。
+* **15 秒防洗版節流器 (Debounce Window)**：
+  在廣播接收處設置 `15,000ms` 冷卻時間。若使用者頻繁開關螢幕（例如看時間、連續鎖屏解鎖），15 秒內的重疊事件直接攔截，絕不濫發打卡請求或浪費網路流量。
+* **零通知欄干擾 (Zero Notification Footprint)**：
+  捨棄傳統 Foreground Service 必須強行常駐的紙片卡片通知，通知欄完全乾淨，不干擾使用者日常視覺觀感。
+
+---
+
+### 4.3 電池最佳化豁免與權限指引 (`GuardianPermissionHelper`)
+
+* **權限宣告**：`android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`。
+* **首頁狀態卡片**：
+  * 「解鎖心跳守護 (無通知常駐)」：即時檢測無障礙是否啟用，未啟用時提供「前往開啟 ➔」按鈕直達系統無障礙設定頁。
+  * 「電池最佳化豁免 (抗殺進程)」：即時檢測是否已加入 Doze 白名單，未豁免時提供「設定豁免 ➔」彈窗一鍵授權，防止手機深度休眠時進程被 OEM 系統凍結。
+
+---
+
+### 4.4 用戶端本地資料持久化 (`SessionManager`)
+
+Android 端使用加密/私有 `SharedPreferences` 保存用戶狀態：
+* `user_id`：UUID 唯一識別碼。
+* `phone`、`nickname`、`emergency_contact`：用戶基本資料。
+* `safety_status`：當前安全狀態 (`SAFE` / `ALERTED`)。
+* `next_deadline`：下次打卡截止時間戳（ISO-8601 格式）。
+
