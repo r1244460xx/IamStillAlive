@@ -10,7 +10,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -178,12 +180,12 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // 4. 緊急聯絡人資訊
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(vertical = 4.dp)
+                modifier = Modifier.padding(vertical = 2.dp)
             ) {
                 Icon(Icons.Default.Shield, null, tint = Slate500, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
@@ -194,20 +196,101 @@ fun HomeScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 4.1 無感守護狀態卡片 (Accessibility & Battery Optimization)
+            val context = androidx.compose.ui.platform.LocalContext.current
+            var isAccEnabled by androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(com.imsa.app.util.GuardianPermissionHelper.isAccessibilityServiceEnabled(context))
+            }
+            var isBatteryExempt by androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(com.imsa.app.util.GuardianPermissionHelper.isIgnoringBatteryOptimizations(context))
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Slate100)
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isAccEnabled) Icons.Default.CheckCircle else Icons.Default.Info,
+                                contentDescription = null,
+                                tint = if (isAccEnabled) PrimaryGreenDark else AlertRed,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("解鎖心跳守護 (無通知常駐)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Slate900)
+                        }
+                        if (isAccEnabled) {
+                            Text("已常駐運行", fontSize = 11.sp, color = PrimaryGreenDark, fontWeight = FontWeight.Bold)
+                        } else {
+                            TextButton(
+                                onClick = {
+                                    com.imsa.app.util.GuardianPermissionHelper.openAccessibilitySettings(context)
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text("前往開啟 ➔", fontSize = 11.sp, color = AccentBlue)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isBatteryExempt) Icons.Default.CheckCircle else Icons.Default.Info,
+                                contentDescription = null,
+                                tint = if (isBatteryExempt) PrimaryGreenDark else Slate500,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("電池最佳化豁免 (抗殺進程)", fontSize = 12.sp, color = Slate700)
+                        }
+                        if (isBatteryExempt) {
+                            Text("已豁免", fontSize = 11.sp, color = PrimaryGreenDark)
+                        } else {
+                            TextButton(
+                                onClick = {
+                                    com.imsa.app.util.GuardianPermissionHelper.requestIgnoreBatteryOptimizations(context)
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text("設定豁免 ➔", fontSize = 11.sp, color = AccentBlue)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
 
             // WorkManager 背景定時心跳按鈕
             OutlinedButton(
                 onClick = onTriggerWorkManager,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(44.dp),
+                    .height(40.dp),
                 shape = RoundedCornerShape(10.dp),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Slate700)
             ) {
-                Icon(Icons.Default.Bolt, null, modifier = Modifier.size(18.dp), tint = AccentBlue)
+                Icon(Icons.Default.Bolt, null, modifier = Modifier.size(16.dp), tint = AccentBlue)
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("測試 WorkManager 背景心跳 (每12小時自動)", fontSize = 13.sp)
+                Text("測試 WorkManager 背景心跳 (每12小時自動)", fontSize = 12.sp)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
