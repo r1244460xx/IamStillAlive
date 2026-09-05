@@ -63,11 +63,26 @@ public class LoginRecordService {
 
     @Transactional(readOnly = true)
     public List<LoginRecordResponse> getRecordsByUserId(UUID userId) {
-        if (!userRepository.existsById(userId)) {
+        return getRecordsByUserId(userId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<LoginRecordResponse> getRecordsByUserId(UUID userId, String phone) {
+        User user = null;
+        if (userId != null) {
+            user = userRepository.findById(userId).orElse(null);
+        }
+        if (user == null && phone != null && !phone.isBlank()) {
+            user = userRepository.findByPhone(phone).orElse(null);
+            if (user != null) {
+                log.info("🔄 getRecordsByUserId: 透過手機門號 [{}] 自動找回使用者打卡紀錄 (ID: {})", phone, user.getId());
+            }
+        }
+        if (user == null) {
             throw new IllegalArgumentException("找不到該使用者");
         }
         
-        List<LoginRecord> records = loginRecordRepository.findByUserIdOrderByLoginTimeDesc(userId);
+        List<LoginRecord> records = loginRecordRepository.findByUserIdOrderByLoginTimeDesc(user.getId());
         return records.stream()
                 .map(LoginRecordResponse::fromEntity)
                 .collect(Collectors.toList());

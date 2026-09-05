@@ -168,12 +168,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun checkIn(remark: String = "手機 App 一鍵打卡報平安") {
         val currentUserId = _uiState.value.userId
-        if (currentUserId.isBlank()) return
+        if (currentUserId.isBlank() && session.phone.isNullOrBlank()) return
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, message = null)
             try {
                 val req = UserCheckInRequest(
+                    phone = session.phone,
                     deviceInfo = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})",
                     networkType = "Wi-Fi",
                     remark = remark
@@ -181,6 +182,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val resp = api.checkIn(currentUserId, req)
                 if (resp.isSuccessful && resp.body() != null) {
                     val data = resp.body()!!
+                    if (!data.userId.isNullOrBlank() && data.userId != currentUserId) {
+                        session.userId = data.userId
+                        _uiState.value = _uiState.value.copy(userId = data.userId)
+                    }
                     session.safetyStatus = data.safetyStatus
                     session.nextDeadline = data.nextCheckInDeadline
 
@@ -212,13 +217,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshData() {
         val currentUserId = _uiState.value.userId
-        if (currentUserId.isBlank()) return
+        if (currentUserId.isBlank() && session.phone.isNullOrBlank()) return
 
         viewModelScope.launch {
             try {
-                val profileResp = api.getUserProfile(currentUserId)
+                val profileResp = api.getUserProfile(currentUserId, session.phone)
                 if (profileResp.isSuccessful && profileResp.body() != null) {
                     val user = profileResp.body()!!
+                    if (session.userId != user.id) {
+                        session.userId = user.id
+                        _uiState.value = _uiState.value.copy(userId = user.id)
+                    }
                     session.saveUser(user)
                     _uiState.value = _uiState.value.copy(
                         nickname = user.nickname,
@@ -236,9 +245,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun fetchHistory() {
         val currentUserId = _uiState.value.userId
-        if (currentUserId.isBlank()) return
+        if (currentUserId.isBlank() && session.phone.isNullOrBlank()) return
         try {
-            val historyResp = api.getLoginRecords(currentUserId)
+            val historyResp = api.getLoginRecords(currentUserId, session.phone)
             if (historyResp.isSuccessful && historyResp.body() != null) {
                 _uiState.value = _uiState.value.copy(
                     recentRecords = historyResp.body()!!.take(5)

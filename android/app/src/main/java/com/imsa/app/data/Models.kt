@@ -44,6 +44,7 @@ data class UserUpdateRequest(
 )
 
 data class UserCheckInRequest(
+    val phone: String? = null,
     val location: String? = null,
     val ipAddress: String? = null,
     val deviceInfo: String? = null,

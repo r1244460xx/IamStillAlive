@@ -25,11 +25,12 @@ class SafetyCheckInWorker(
         val remark = inputData.getString(KEY_REMARK) ?: "系統背景定時心跳包報平安 (無感守護)"
         val networkType = inputData.getString(KEY_NETWORK_TYPE) ?: "WorkManager"
 
-        Log.i("SafetyCheckInWorker", "🚀 [WorkManager] 正在執行背景心跳打卡 (User: $userId, 類型: $networkType)...")
+        Log.i("SafetyCheckInWorker", "🚀 [WorkManager] 正在執行背景心跳打卡 (User: $userId, Phone: ${session.phone}, 類型: $networkType)...")
 
         return try {
             val api = ImsaApiService.create(session.serverUrl)
             val request = UserCheckInRequest(
+                phone = session.phone,
                 deviceInfo = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
                 networkType = networkType,
                 remark = remark
@@ -38,10 +39,18 @@ class SafetyCheckInWorker(
 
             if (response.isSuccessful && response.body() != null) {
                 val data = response.body()!!
+                // 自動自我修復：若後端 Canonical ID 不同，自動同步 Session
+                if (!data.userId.isNullOrBlank() && session.userId != data.userId) {
+                    Log.i("SafetyCheckInWorker", "🔄 自動修復本地 Session 使用者 ID: ${session.userId} -> ${data.userId}")
+                    session.userId = data.userId
+                }
                 session.safetyStatus = data.safetyStatus
                 session.nextDeadline = data.nextCheckInDeadline
                 Log.i("SafetyCheckInWorker", "💚 [WorkManager] 背景打卡成功！狀態已更新為 SAFE，下次截止時間：${data.nextCheckInDeadline}")
                 Result.success()
+            } else if (response.code() in 400..499) {
+                Log.w("SafetyCheckInWorker", "⚠️ [WorkManager] 客戶端錯誤 (${response.code()})，停止重試以避免無效循環")
+                Result.failure()
             } else {
                 Log.w("SafetyCheckInWorker", "⚠️ [WorkManager] 背景打卡回應失敗: ${response.code()}")
                 Result.retry()

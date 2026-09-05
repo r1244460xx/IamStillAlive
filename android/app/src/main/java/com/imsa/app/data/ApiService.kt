@@ -11,6 +11,7 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import retrofit2.http.Query
 import java.util.concurrent.TimeUnit
 
 interface ImsaApiService {
@@ -22,7 +23,10 @@ interface ImsaApiService {
     suspend fun login(@Body request: UserLoginRequest): Response<UserResponse>
 
     @GET("api/users/{id}")
-    suspend fun getUserProfile(@Path("id") id: String): Response<UserResponse>
+    suspend fun getUserProfile(
+        @Path("id") id: String,
+        @Query("phone") phone: String? = null
+    ): Response<UserResponse>
 
     @PUT("api/users/{id}")
     suspend fun updateUserProfile(
@@ -49,7 +53,10 @@ interface ImsaApiService {
     ): Response<UserCheckInResponse>
 
     @GET("api/login-records/user/{userId}")
-    suspend fun getLoginRecords(@Path("userId") userId: String): Response<List<LoginRecordResponse>>
+    suspend fun getLoginRecords(
+        @Path("userId") userId: String,
+        @Query("phone") phone: String? = null
+    ): Response<List<LoginRecordResponse>>
 
     @DELETE("api/login-records/{id}")
     suspend fun deleteLoginRecord(@Path("id") id: String): Response<Unit>

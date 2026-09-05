@@ -96,8 +96,24 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public UserResponse getUserById(UUID id) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("找不到該使用者"));
+        return getUserById(id, null);
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponse getUserById(UUID id, String phone) {
+        User user = null;
+        if (id != null) {
+            user = userRepository.findById(id).orElse(null);
+        }
+        if (user == null && phone != null && !phone.isBlank()) {
+            user = userRepository.findByPhone(phone).orElse(null);
+            if (user != null) {
+                log.info("🔄 getUserById: 透過手機門號 [{}] 自動找回對應使用者 (ID: {})", phone, user.getId());
+            }
+        }
+        if (user == null) {
+            throw new IllegalArgumentException("找不到該使用者");
+        }
         return UserResponse.fromEntity(user);
     }
 
@@ -155,8 +171,19 @@ public class UserService {
      */
     @Transactional
     public UserCheckInResponse checkIn(UUID userId, UserCheckInRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到該使用者"));
+        User user = null;
+        if (userId != null) {
+            user = userRepository.findById(userId).orElse(null);
+        }
+        if (user == null && request != null && request.getPhone() != null && !request.getPhone().isBlank()) {
+            user = userRepository.findByPhone(request.getPhone()).orElse(null);
+            if (user != null) {
+                log.info("🔄 CheckIn: 透過手機門號 [{}] 自動找回對應使用者 (ID: {})", request.getPhone(), user.getId());
+            }
+        }
+        if (user == null) {
+            throw new IllegalArgumentException("找不到該使用者");
+        }
 
         LocalDateTime now = LocalDateTime.now();
         user.setLastActiveAt(now);

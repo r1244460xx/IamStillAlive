@@ -32,8 +32,10 @@ public class LoginRecordController {
     }
 
     @GetMapping("/user/{userId}")
-    public ResponseEntity<List<LoginRecordResponse>> getRecordsByUserId(@PathVariable UUID userId) {
-        List<LoginRecordResponse> responses = loginRecordService.getRecordsByUserId(userId);
+    public ResponseEntity<List<LoginRecordResponse>> getRecordsByUserId(
+            @PathVariable UUID userId,
+            @RequestParam(required = false) String phone) {
+        List<LoginRecordResponse> responses = loginRecordService.getRecordsByUserId(userId, phone);
         return ResponseEntity.ok(responses);
     }
 
