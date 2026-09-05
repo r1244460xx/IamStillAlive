@@ -53,9 +53,6 @@ fun HomeScreen(
                     IconButton(onClick = onRefresh) {
                         Icon(Icons.Default.Refresh, contentDescription = "刷新")
                     }
-                    IconButton(onClick = onNavigateToChangePassword) {
-                        Icon(Icons.Default.ManageAccounts, contentDescription = "帳號與安全設定")
-                    }
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Default.Logout, contentDescription = "切換帳號")
                     }
