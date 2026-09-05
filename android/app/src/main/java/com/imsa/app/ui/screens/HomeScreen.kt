@@ -134,7 +134,7 @@ fun HomeScreen(
 
                     Text(
                         text = when {
-                            isOffline -> "目前心跳 API 無法連線，打卡記錄無法上傳。\n已在手機保留最近一次解鎖，系統每 10 秒自動重試。"
+                            isOffline -> "目前心跳 API 無法連線，打卡記錄無法上傳。\n已在手機保留最近一次解鎖，連網時將立即補傳。"
                             isAlerted -> "已超過 24 小時未偵測到手機解鎖！緊急聯絡人已收到通報。"
                             else -> "免手動操作・每次解鎖螢幕自動向守護中心報平安"
                         },
@@ -431,7 +431,7 @@ fun HomeScreen(
                                             color = WarningYellowDark
                                         )
                                         Text(
-                                            text = "手機端暫存最新一筆・每 10 秒自動重試補傳",
+                                            text = "手機端暫存最新一筆・連網時立即補傳（背景退避重試）",
                                             fontSize = 11.sp,
                                             color = Slate700
                                         )

@@ -1,6 +1,10 @@
 package com.imsa.app.util
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.os.Build
 import android.util.Log
 import com.imsa.app.data.ImsaApiService
@@ -10,28 +14,110 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.sync.Mutex
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 object HeartbeatSyncManager {
 
     private const val TAG = "HeartbeatSyncMgr"
-    private const val RETRY_INTERVAL_MS = 10_000L // 每 10 秒重試一次
+    private const val INITIAL_RETRY_INTERVAL_MS = 10_000L // 初始 10 秒
+    private const val MAX_RETRY_INTERVAL_MS = 300_000L     // 最長 5 分鐘 (300 秒)
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var retryJob: Job? = null
+    private val syncMutex = Mutex()
+
+    private var currentRetryIntervalMs = INITIAL_RETRY_INTERVAL_MS
+    private var lastInstantRetryTime = 0L
 
     private val _isDisconnected = MutableStateFlow(false)
     val isDisconnectedFlow: StateFlow<Boolean> = _isDisconnected.asStateFlow()
+
+    private var isNetworkCallbackRegistered = false
 
     // 供外部或 ViewModel 註冊連線恢復回調以即時刷新資料
     var onConnectionRestoredListener: (() -> Unit)? = null
 
     fun init(context: Context) {
-        val session = SessionManager(context)
+        val application = context.applicationContext
+        val session = SessionManager(application)
         _isDisconnected.value = session.isDisconnected
+
+        registerNetworkCallback(application)
+
         if (session.isDisconnected && session.getPendingCheckIn() != null) {
-            startRetryLoop(context)
+            startRetryLoop(application)
+        }
+    }
+
+    /**
+     * 註冊 ConnectivityManager.NetworkCallback，感知手機連網狀態
+     * 只要 Wi-Fi 或行動數據開關被開啟且具備 Internet 能力，即時觸發瞬時重試
+     */
+    private fun registerNetworkCallback(context: Context) {
+        if (isNetworkCallbackRegistered) return
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+
+        try {
+            cm.registerNetworkCallback(request, object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) {
+                    Log.i(TAG, "🌐 [網路感知] 偵測到手機網路連通 (onAvailable)，準備執行瞬時補傳重試！")
+                    triggerInstantRetry(context)
+                }
+
+                override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+                    val hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+                    if (hasInternet) {
+                        Log.d(TAG, "🌐 [網路感知] 網路具備驗證有效之網際網路能力 (NET_CAPABILITY_VALIDATED)")
+                        triggerInstantRetry(context)
+                    }
+                }
+
+                override fun onLost(network: Network) {
+                    Log.d(TAG, "🌐 [網路感知] 網路連線已中斷 (onLost)")
+                }
+            })
+            isNetworkCallbackRegistered = true
+            Log.i(TAG, "📡 [網路監聽] ConnectivityManager.NetworkCallback 已成功掛載")
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ 註冊 NetworkCallback 異常: ${e.localizedMessage}")
+        }
+    }
+
+    /**
+     * 瞬時重試：當手機網路開關打開或連上 Wi-Fi 時被 NetworkCallback 觸發
+     */
+    fun triggerInstantRetry(context: Context) {
+        val session = SessionManager(context)
+        val userId = session.userId
+        val pending = session.getPendingCheckIn()
+
+        // 僅在使用者已登入且（處於斷線狀態或有未完成補傳紀錄）時觸發
+        if (userId.isNullOrBlank() || (!_isDisconnected.value && pending == null)) {
+            return
+        }
+
+        // 避免 2 秒內連續重疊觸發
+        val now = System.currentTimeMillis()
+        if (now - lastInstantRetryTime < 2_000L) {
+            return
+        }
+        lastInstantRetryTime = now
+
+        Log.i(TAG, "⚡ [瞬時重試] 網路開關開啟或連上 Wi-Fi，立即瞬時補傳心跳！")
+        // 重置退避間隔為初始 10 秒
+        currentRetryIntervalMs = INITIAL_RETRY_INTERVAL_MS
+
+        scope.launch {
+            val success = executeCheckInSync(context, isInstantRetry = true)
+            if (success) {
+                stopRetryLoop()
+            }
         }
     }
 
@@ -40,7 +126,7 @@ object HeartbeatSyncManager {
      * 1. 將本地暫存更新為「此時此刻解鎖」的資料（保證手機端只保留最新一筆）。
      * 2. 立即嘗試打心跳 API（就讓後端決定時間為當前伺服器時間）。
      * 3. 若打成功：清除暫存、解除斷線狀態（轉綠色）、後端記錄該筆解鎖、刷新 App。
-     * 4. 若打失敗：維持/進入斷線狀態、保留該筆最新解鎖紀錄、啟動 10 秒自動重試。
+     * 4. 若打失敗：維持/進入斷線狀態、保留該筆最新解鎖紀錄、啟動指數退避自動重試。
      */
     fun handleScreenUnlock(context: Context) {
         val session = SessionManager(context)
@@ -60,82 +146,103 @@ object HeartbeatSyncManager {
         Log.i(TAG, "📱 偵測到手機螢幕解鎖！已更新手機端最近一筆打卡紀錄 [$nowIso]，立即嘗試發送心跳 API...")
 
         scope.launch {
-            try {
-                val api = ImsaApiService.create(session.serverUrl)
-                val request = UserCheckInRequest(
-                    phone = session.phone,
-                    deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL}",
-                    networkType = "ScreenUnlock",
-                    remark = "螢幕解鎖自動報平安",
-                    checkInTime = null // 讓後端決定心跳時間為當前伺服器時間（即解鎖當下那一筆）
-                )
-                val response = api.checkIn(userId, request)
-
-                if (response.isSuccessful && response.body() != null) {
-                    val data = response.body()!!
-                    Log.i(TAG, "💚 [解鎖即時打卡] 成功！後端記錄解鎖時間: ${data.checkInTime}，下次截止: ${data.nextCheckInDeadline}")
-                    // 打卡成功，清除暫存並切回正常連線狀態
-                    session.clearPendingCheckIn()
-                    session.safetyStatus = data.safetyStatus
-                    session.nextDeadline = data.nextCheckInDeadline
-                    setDisconnected(false, context)
-                } else {
-                    Log.w(TAG, "⚠️ [解鎖即時打卡] 伺服器回應失敗 (${response.code()})，進入斷線狀態並啟動 10 秒重試")
-                    setDisconnected(true, context)
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "❌ [解鎖即時打卡] 呼叫心跳 API 異常 (${e.localizedMessage})，進入斷線狀態並啟動 10 秒重試")
+            val success = executeCheckInSync(context, isInstantRetry = false, overrideIsoTime = null)
+            if (success) {
+                Log.i(TAG, "💚 [解鎖即時打卡] 成功！")
+            } else {
+                Log.w(TAG, "⚠️ [解鎖即時打卡] 失敗，進入斷線狀態並啟動退避重試")
                 setDisconnected(true, context)
             }
         }
     }
 
     /**
-     * 啟動 10 秒一次的重試循環
+     * 核心同步執行方法（具備 Mutex 防重疊並發鎖）
+     */
+    private suspend fun executeCheckInSync(
+        context: Context,
+        isInstantRetry: Boolean,
+        overrideIsoTime: String? = "USE_PENDING"
+    ): Boolean {
+        if (!syncMutex.tryLock()) {
+            Log.d(TAG, "已有同步任務正在執行中，略過重疊執行")
+            return false
+        }
+        try {
+            val session = SessionManager(context)
+            val userId = session.userId
+            val pending = session.getPendingCheckIn()
+
+            if (userId.isNullOrBlank()) {
+                Log.d(TAG, "使用者未登入，略過打卡同步")
+                return false
+            }
+
+            val checkInTimestamp = if (overrideIsoTime == "USE_PENDING") {
+                if (pending == null) {
+                    Log.d(TAG, "無待補傳紀錄，略過打卡")
+                    return false
+                }
+                pending.timestamp
+            } else {
+                overrideIsoTime
+            }
+
+            val tagPrefix = if (isInstantRetry) "⚡ [瞬時重試]" else if (checkInTimestamp == null) "📱 [解鎖即時]" else "⏱️ [退避重試]"
+            Log.d(TAG, "$tagPrefix 正在發送打卡心跳 API (打卡時間: $checkInTimestamp)...")
+
+            val api = ImsaApiService.create(session.serverUrl)
+            val request = UserCheckInRequest(
+                phone = session.phone,
+                deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL}",
+                networkType = if (isInstantRetry) "NetworkRestoredInstant" else if (checkInTimestamp == null) "ScreenUnlock" else "OfflineBackoffRetry",
+                remark = if (isInstantRetry) "螢幕解鎖自動報平安 (連網瞬時補傳)" else if (checkInTimestamp == null) "螢幕解鎖自動報平安" else "螢幕解鎖自動報平安 (離線退避補傳)",
+                checkInTime = checkInTimestamp
+            )
+            val response = api.checkIn(userId, request)
+
+            if (response.isSuccessful && response.body() != null) {
+                val data = response.body()!!
+                Log.i(TAG, "🎉 $tagPrefix 成功上傳心跳！後端已記錄解鎖時間: ${data.checkInTime}，下次截止: ${data.nextCheckInDeadline}")
+                session.clearPendingCheckIn()
+                session.safetyStatus = data.safetyStatus
+                session.nextDeadline = data.nextCheckInDeadline
+                currentRetryIntervalMs = INITIAL_RETRY_INTERVAL_MS
+                setDisconnected(false, context)
+                return true
+            } else {
+                Log.w(TAG, "⚠️ $tagPrefix 打心跳 API 回應失敗 (${response.code()})")
+                return false
+            }
+        } catch (e: Exception) {
+            val tagPrefix = if (isInstantRetry) "⚡ [瞬時重試]" else "⏱️ [同步打卡]"
+            Log.w(TAG, "❌ $tagPrefix 連線異常 (${e.localizedMessage})")
+            return false
+        } finally {
+            syncMutex.unlock()
+        }
+    }
+
+    /**
+     * 啟動指數退避重試循環 (10s -> 20s -> 40s -> ... 最長 5m)
      */
     fun startRetryLoop(context: Context) {
         if (retryJob?.isActive == true) return
 
-        Log.i(TAG, "🔄 啟動 10 秒自動重試補傳引擎...")
+        Log.i(TAG, "🔄 啟動指數退避自動重試引擎 (初始間隔 ${currentRetryIntervalMs / 1000} 秒)...")
         retryJob = scope.launch {
             while (_isDisconnected.value) {
-                delay(RETRY_INTERVAL_MS)
+                Log.d(TAG, "⏳ 等待下一輪重試 (${currentRetryIntervalMs / 1000} 秒後)...")
+                delay(currentRetryIntervalMs)
                 if (!_isDisconnected.value) break
 
-                val session = SessionManager(context)
-                val pending = session.getPendingCheckIn()
-                val userId = session.userId
-
-                if (userId.isNullOrBlank() || pending == null) {
-                    Log.d(TAG, "無待補傳紀錄或尚未登入，暫停 10 秒重試")
-                    continue
-                }
-
-                Log.d(TAG, "⏱️ [10s重試] 正在嘗試補傳手機端最近一筆解鎖資料 (解鎖時間: ${pending.timestamp})...")
-                try {
-                    val api = ImsaApiService.create(session.serverUrl)
-                    val request = UserCheckInRequest(
-                        phone = session.phone,
-                        deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL}",
-                        networkType = "Offline10sRetry",
-                        remark = "螢幕解鎖自動報平安 (斷線重試補傳)",
-                        checkInTime = pending.timestamp // 傳送解鎖那一筆的原始時間
-                    )
-                    val response = api.checkIn(userId, request)
-
-                    if (response.isSuccessful && response.body() != null) {
-                        val data = response.body()!!
-                        Log.i(TAG, "🎉 [10s重試] 成功上傳心跳！後端已記錄解鎖時間: ${data.checkInTime}，立即解除斷線狀態！")
-                        session.clearPendingCheckIn()
-                        session.safetyStatus = data.safetyStatus
-                        session.nextDeadline = data.nextCheckInDeadline
-                        setDisconnected(false, context)
-                        break
-                    } else {
-                        Log.w(TAG, "⚠️ [10s重試] 打心跳 API 回應失敗 (${response.code()})，維持斷線狀態，10 秒後再次重試...")
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "❌ [10s重試] 連線異常 (${e.localizedMessage})，維持斷線狀態，10 秒後再次重試...")
+                val success = executeCheckInSync(context, isInstantRetry = false)
+                if (success) {
+                    break
+                } else {
+                    // 指數退避：間隔翻倍，最長 5 分鐘 (300 秒)
+                    currentRetryIntervalMs = (currentRetryIntervalMs * 2).coerceAtMost(MAX_RETRY_INTERVAL_MS)
+                    Log.w(TAG, "⚠️ 背景重試未成功，退避延長下次重試間隔至 ${currentRetryIntervalMs / 1000} 秒 (省電抗殺)")
                 }
             }
         }
@@ -143,7 +250,7 @@ object HeartbeatSyncManager {
 
     fun stopRetryLoop() {
         if (retryJob != null) {
-            Log.i(TAG, "🛑 停止 10 秒自動重試循環")
+            Log.i(TAG, "🛑 停止自動重試循環")
             retryJob?.cancel()
             retryJob = null
         }
@@ -158,6 +265,7 @@ object HeartbeatSyncManager {
             startRetryLoop(context)
         } else {
             stopRetryLoop()
+            currentRetryIntervalMs = INITIAL_RETRY_INTERVAL_MS
             if (wasDisconnected) {
                 // 狀態由斷線轉為連線，觸發監聽以刷新 App 畫面
                 onConnectionRestoredListener?.invoke()
@@ -171,9 +279,10 @@ object HeartbeatSyncManager {
     fun resetOnLogout(context: Context) {
         stopRetryLoop()
         _isDisconnected.value = false
+        currentRetryIntervalMs = INITIAL_RETRY_INTERVAL_MS
         val session = SessionManager(context)
         session.isDisconnected = false
         session.clearPendingCheckIn()
-        Log.i(TAG, "🚪 [登出重置] 已終止背景重試迴圈並重置連線狀態與打卡暫存")
+        Log.i(TAG, "🚪 [登出重置] 已終止背景重試迴圈、重置退避間隔與連線狀態並清空打卡暫存")
     }
 }
