@@ -58,23 +58,11 @@ class SafetyCheckInWorker(
         const val KEY_NETWORK_TYPE = "key_network_type"
 
         /**
-         * 排定每 12 小時定時執行的背景心跳打卡
+         * 取消既有的 12 小時定時排程（唯一打卡時機為螢幕解鎖，不進行盲目定時打卡）
          */
-        fun schedulePeriodicHeartbeat(context: Context) {
-            val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED) // 需在聯網時執行
-                .build()
-
-            val periodicRequest = PeriodicWorkRequestBuilder<SafetyCheckInWorker>(12, TimeUnit.HOURS)
-                .setConstraints(constraints)
-                .build()
-
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-                WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
-                periodicRequest
-            )
-            Log.i("SafetyCheckInWorker", "📅 已排定每 12 小時背景自動打卡任務")
+        fun cancelPeriodicHeartbeat(context: Context) {
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+            Log.i("SafetyCheckInWorker", "🛑 已取消 12 小時背景定時心跳任務 (打卡唯一依據為螢幕解鎖)")
         }
 
         /**
