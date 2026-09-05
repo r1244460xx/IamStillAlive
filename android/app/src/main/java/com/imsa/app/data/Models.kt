@@ -49,7 +49,14 @@ data class UserCheckInRequest(
     val ipAddress: String? = null,
     val deviceInfo: String? = null,
     val networkType: String? = null,
-    val remark: String? = null
+    val remark: String? = null,
+    val checkInTime: String? = null
+)
+
+data class PendingCheckIn(
+    val timestamp: String,
+    val remark: String,
+    val networkType: String = "ScreenUnlock"
 )
 
 data class UserCheckInResponse(

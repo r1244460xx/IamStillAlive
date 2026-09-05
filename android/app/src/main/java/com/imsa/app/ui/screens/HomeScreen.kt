@@ -76,12 +76,33 @@ fun HomeScreen(
 
             // 1. 安全狀態與解鎖守護核心面板
             val isAlerted = state.safetyStatus == "ALERTED"
+            val isOffline = !state.isOnline
+
+            val cardBg = when {
+                isOffline -> WarningYellowBg
+                isAlerted -> AlertRedBg
+                else -> SafeGreenBg
+            }
+            val circleBg = when {
+                isOffline -> WarningYellow
+                isAlerted -> AlertRed
+                else -> PrimaryGreen
+            }
+            val titleColor = when {
+                isOffline -> WarningYellowDark
+                isAlerted -> AlertRed
+                else -> PrimaryGreenDark
+            }
+            val circleIcon = when {
+                isOffline -> Icons.Default.CloudOff
+                isAlerted -> Icons.Default.Warning
+                else -> Icons.Default.Shield
+            }
+
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isAlerted) AlertRedBg else SafeGreenBg
-                )
+                colors = CardDefaults.cardColors(containerColor = cardBg)
             ) {
                 Column(
                     modifier = Modifier
@@ -94,10 +115,10 @@ fun HomeScreen(
                         modifier = Modifier
                             .size(68.dp)
                             .clip(CircleShape)
-                            .background(if (isAlerted) AlertRed else PrimaryGreen)
+                            .background(circleBg)
                     ) {
                         Icon(
-                            imageVector = if (isAlerted) Icons.Default.Warning else Icons.Default.Shield,
+                            imageVector = circleIcon,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(36.dp)
@@ -107,19 +128,24 @@ fun HomeScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = if (isAlerted) "⚠️ 安全警報已觸發" else "平安守護中",
+                        text = when {
+                            isOffline -> "斷網無法上傳"
+                            isAlerted -> "⚠️ 安全警報已觸發"
+                            else -> "平安守護中"
+                        },
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
-                        color = if (isAlerted) AlertRed else PrimaryGreenDark
+                        color = titleColor
                     )
 
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = if (isAlerted)
-                            "已超過 24 小時未偵測到手機解鎖！緊急聯絡人已收到通報。"
-                        else
-                            "免手動操作・每次解鎖螢幕自動向守護中心報平安",
+                        text = when {
+                            isOffline -> "目前處於斷網狀態，打卡記錄無法上傳。\n已在手機保留最近一次解鎖，恢復連網時將自動補傳。"
+                            isAlerted -> "已超過 24 小時未偵測到手機解鎖！緊急聯絡人已收到通報。"
+                            else -> "免手動操作・每次解鎖螢幕自動向守護中心報平安"
+                        },
                         fontSize = 13.sp,
                         color = Slate700,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -275,11 +301,11 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // 5. 帳號與安全設定卡片
+            // 5. 帳號與安全設定卡片 (離線時置灰禁用)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Slate100)
+                colors = CardDefaults.cardColors(containerColor = if (isOffline) Slate100.copy(alpha = 0.6f) else Slate100)
             ) {
                 Row(
                     modifier = Modifier
@@ -291,25 +317,51 @@ fun HomeScreen(
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .clickable { onNavigateToChangePassword() }
+                            .then(
+                                if (!isOffline) Modifier.clickable { onNavigateToChangePassword() }
+                                else Modifier
+                            )
                             .padding(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.LockReset, null, tint = Slate700, modifier = Modifier.size(16.dp))
+                        Icon(
+                            Icons.Default.LockReset, 
+                            null, 
+                            tint = if (isOffline) Slate400 else Slate700, 
+                            modifier = Modifier.size(16.dp)
+                        )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("修改密碼 ➔", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Slate700)
+                        Text(
+                            text = if (isOffline) "修改密碼 (離線禁用)" else "修改密碼 ➔",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isOffline) Slate400 else Slate700
+                        )
                     }
                     Text("|", color = Slate400, fontSize = 12.sp)
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
-                            .clickable { onNavigateToChangeEmergencyContact() }
+                            .then(
+                                if (!isOffline) Modifier.clickable { onNavigateToChangeEmergencyContact() }
+                                else Modifier
+                            )
                             .padding(4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.ContactPhone, null, tint = Slate700, modifier = Modifier.size(16.dp))
+                        Icon(
+                            Icons.Default.ContactPhone, 
+                            null, 
+                            tint = if (isOffline) Slate400 else Slate700, 
+                            modifier = Modifier.size(16.dp)
+                        )
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("修改緊急聯絡人 ➔", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Slate700)
+                        Text(
+                            text = if (isOffline) "修改緊急聯絡人 (離線禁用)" else "修改緊急聯絡人 ➔",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isOffline) Slate400 else Slate700
+                        )
                     }
                 }
             }
@@ -327,7 +379,8 @@ fun HomeScreen(
                     .padding(vertical = 8.dp)
             )
 
-            if (state.recentRecords.isEmpty()) {
+            val hasRecords = state.recentRecords.isNotEmpty() || state.pendingCheckIn != null
+            if (!hasRecords) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -341,6 +394,45 @@ fun HomeScreen(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // 若有離線暫存打卡（保留唯一最新一筆），置頂特別呈現
+                    state.pendingCheckIn?.let { pending ->
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp),
+                                colors = CardDefaults.cardColors(containerColor = WarningYellowBg)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "📱 螢幕解鎖 (待連網補傳)",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            color = WarningYellowDark
+                                        )
+                                        Text(
+                                            text = "手機端暫存最新一筆・連網後自動上傳",
+                                            fontSize = 11.sp,
+                                            color = Slate700
+                                        )
+                                    }
+                                    Text(
+                                        text = pending.timestamp.replace("T", " ").substringBeforeLast("."),
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = WarningYellowDark
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     items(state.recentRecords) { record ->
                         Card(
                             modifier = Modifier.fillMaxWidth(),

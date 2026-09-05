@@ -185,19 +185,24 @@ public class UserService {
             throw new IllegalArgumentException("找不到該使用者");
         }
 
-        LocalDateTime now = LocalDateTime.now();
-        user.setLastActiveAt(now);
+        LocalDateTime eventTime = (request != null && request.getCheckInTime() != null) 
+                ? request.getCheckInTime() 
+                : LocalDateTime.now();
+
+        if (user.getLastActiveAt() == null || eventTime.isAfter(user.getLastActiveAt())) {
+            user.setLastActiveAt(eventTime);
+        }
 
         // 如果先前處於警報狀態，自動解除並重置回 SAFE
         if (user.getSafetyStatus() == SafetyStatus.ALERTED) {
             user.setSafetyStatus(SafetyStatus.SAFE);
-            log.info("💚 使用者 [{}] 完成一鍵打卡，安全狀態已由 ALERTED 重置為 SAFE！", user.getNickname());
+            log.info("💚 使用者 [{}] 完成打卡，安全狀態已由 ALERTED 重置為 SAFE！", user.getNickname());
         }
         userRepository.save(user);
 
         LoginRecord record = LoginRecord.builder()
                 .user(user)
-                .loginTime(now)
+                .loginTime(eventTime)
                 .location(request != null ? request.getLocation() : null)
                 .ipAddress(request != null ? request.getIpAddress() : null)
                 .deviceInfo(request != null ? request.getDeviceInfo() : null)
@@ -211,9 +216,9 @@ public class UserService {
         return UserCheckInResponse.builder()
                 .userId(user.getId())
                 .loginRecordId(savedRecord.getId())
-                .checkInTime(now)
+                .checkInTime(eventTime)
                 .safetyStatus(SafetyStatus.SAFE)
-                .nextCheckInDeadline(now.plusHours(24))
+                .nextCheckInDeadline(eventTime.plusHours(24))
                 .message("打卡成功！已為您更新安全狀態，祝您平安順心。")
                 .build();
     }

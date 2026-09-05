@@ -74,6 +74,29 @@ class SessionManager(context: Context) {
             .apply()
     }
 
+    fun savePendingCheckIn(timestamp: String, remark: String, networkType: String = "ScreenUnlock") {
+        prefs.edit()
+            .putString("pending_checkin_timestamp", timestamp)
+            .putString("pending_checkin_remark", remark)
+            .putString("pending_checkin_network_type", networkType)
+            .apply()
+    }
+
+    fun getPendingCheckIn(): PendingCheckIn? {
+        val timestamp = prefs.getString("pending_checkin_timestamp", null) ?: return null
+        val remark = prefs.getString("pending_checkin_remark", "螢幕解鎖自動報平安 (離線暫存補傳)") ?: "螢幕解鎖自動報平安 (離線暫存補傳)"
+        val networkType = prefs.getString("pending_checkin_network_type", "ScreenUnlock") ?: "ScreenUnlock"
+        return PendingCheckIn(timestamp, remark, networkType)
+    }
+
+    fun clearPendingCheckIn() {
+        prefs.edit()
+            .remove("pending_checkin_timestamp")
+            .remove("pending_checkin_remark")
+            .remove("pending_checkin_network_type")
+            .apply()
+    }
+
     fun logout() {
         val currentServer = serverUrl
         prefs.edit().clear().apply()

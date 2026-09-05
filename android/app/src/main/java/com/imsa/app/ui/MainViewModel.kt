@@ -14,6 +14,8 @@ import java.time.format.DateTimeFormatter
 data class MainUiState(
     val isLoading: Boolean = false,
     val isLoggedIn: Boolean = false,
+    val isOnline: Boolean = true,
+    val pendingCheckIn: PendingCheckIn? = null,
     val userId: String = "",
     val nickname: String = "",
     val phone: String = "",
@@ -33,14 +35,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val session = SessionManager(application)
     private var api = ImsaApiService.create(session.serverUrl)
 
-    private val _uiState = MutableStateFlow(MainUiState(serverUrl = session.serverUrl))
+    private val _uiState = MutableStateFlow(
+        MainUiState(
+            serverUrl = session.serverUrl,
+            isOnline = com.imsa.app.util.NetworkMonitor.isOnline(application),
+            pendingCheckIn = session.getPendingCheckIn()
+        )
+    )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
         loadSession()
+        observeNetwork()
+    }
+
+    private fun observeNetwork() {
+        viewModelScope.launch {
+            com.imsa.app.util.NetworkMonitor.observeNetwork(getApplication()).collect { online ->
+                val wasOffline = !_uiState.value.isOnline
+                _uiState.value = _uiState.value.copy(
+                    isOnline = online,
+                    pendingCheckIn = session.getPendingCheckIn()
+                )
+                // 若由斷網轉為連網，自動同步資料
+                if (wasOffline && online && session.isLoggedIn()) {
+                    refreshData()
+                }
+            }
+        }
     }
 
     fun loadSession() {
+        val pending = session.getPendingCheckIn()
         if (session.isLoggedIn()) {
             _uiState.value = _uiState.value.copy(
                 isLoggedIn = true,
@@ -50,12 +76,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 phone = session.phone.orEmpty(),
                 emergencyContact = session.emergencyContact,
                 safetyStatus = session.safetyStatus ?: "SAFE",
-                nextDeadline = session.nextDeadline
+                nextDeadline = session.nextDeadline,
+                pendingCheckIn = pending
             )
             com.imsa.app.worker.SafetyCheckInWorker.cancelPeriodicHeartbeat(getApplication())
             refreshData()
         } else {
-            _uiState.value = _uiState.value.copy(isLoggedIn = false, serverUrl = session.serverUrl)
+            _uiState.value = _uiState.value.copy(isLoggedIn = false, serverUrl = session.serverUrl, pendingCheckIn = pending)
         }
     }
 
@@ -216,6 +243,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refreshData() {
+        val pending = session.getPendingCheckIn()
+        _uiState.value = _uiState.value.copy(pendingCheckIn = pending)
+
         val currentUserId = _uiState.value.userId
         if (currentUserId.isBlank() && session.phone.isNullOrBlank()) return
 

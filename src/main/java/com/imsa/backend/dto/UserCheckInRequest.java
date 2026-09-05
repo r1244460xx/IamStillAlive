@@ -2,6 +2,8 @@ package com.imsa.backend.dto;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Data
 public class UserCheckInRequest {
     private String phone;
@@ -10,4 +12,5 @@ public class UserCheckInRequest {
     private String deviceInfo;
     private String networkType;
     private String remark;
+    private LocalDateTime checkInTime;
 }
