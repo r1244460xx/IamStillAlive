@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -40,6 +41,22 @@ public class UserController {
             @PathVariable UUID id, 
             @Valid @RequestBody UserUpdateRequest request) {
         UserResponse response = userService.updateUser(id, request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/{id}/password")
+    public ResponseEntity<Map<String, String>> changePassword(
+            @PathVariable UUID id,
+            @Valid @RequestBody UserPasswordChangeRequest request) {
+        userService.changePassword(id, request);
+        return ResponseEntity.ok(Map.of("message", "密碼已成功變更"));
+    }
+
+    @PutMapping("/{id}/emergency-contact")
+    public ResponseEntity<UserResponse> updateEmergencyContact(
+            @PathVariable UUID id,
+            @Valid @RequestBody UserEmergencyContactUpdateRequest request) {
+        UserResponse response = userService.updateEmergencyContact(id, request.getEmergencyContactPhone());
         return ResponseEntity.ok(response);
     }
 

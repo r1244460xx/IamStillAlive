@@ -125,6 +125,31 @@ public class UserService {
         return UserResponse.fromEntity(updatedUser);
     }
 
+    @Transactional
+    public void changePassword(UUID userId, UserPasswordChangeRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到該使用者"));
+
+        if (!passwordEncoder.matches(request.getOldPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("原密碼輸入錯誤，請重新確認");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        log.info("🔑 使用者 [{}] 成功變更登入密碼", user.getPhone());
+    }
+
+    @Transactional
+    public UserResponse updateEmergencyContact(UUID userId, String emergencyContactPhone) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("找不到該使用者"));
+
+        user.setEmergencyContactPhone(emergencyContactPhone);
+        User updated = userRepository.save(user);
+        log.info("📞 使用者 [{}] 成功變更緊急聯絡人電話為 [{}]", user.getPhone(), emergencyContactPhone);
+        return UserResponse.fromEntity(updated);
+    }
+
     /**
      * 語意化一鍵打卡 API 業務邏輯
      */
