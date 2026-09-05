@@ -35,6 +35,18 @@
                 android:name="android.accessibilityservice"
                 android:resource="@xml/safety_guardian_accessibility_config" />
         </service>
+
+        <receiver
+            android:name=".receiver.DeviceShutdownReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.ACTION_SHUTDOWN" />
+                <action android:name="android.intent.action.BATTERY_LOW" />
+                <action android:name="android.intent.action.QUICKBOOT_POWEROFF" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWEROFF" />
+                <action android:name="com.imsa.app.action.TEST_SHUTDOWN" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

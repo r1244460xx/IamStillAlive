@@ -22,4 +22,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             SafetyStatus safetyStatus, 
             LocalDateTime threshold
     );
+
+    List<User> findByStatusAndSafetyStatusInAndLastActiveAtBefore(
+            UserStatus status, 
+            java.util.Collection<SafetyStatus> safetyStatuses, 
+            LocalDateTime threshold
+    );
 }

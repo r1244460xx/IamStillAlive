@@ -49,6 +49,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         com.imsa.app.util.HeartbeatSyncManager.onConnectionRestoredListener = {
             refreshData()
         }
+        com.imsa.app.util.HeartbeatSyncManager.onCheckInSuccessListener = {
+            refreshData()
+        }
         loadSession()
         observeSyncManager()
     }

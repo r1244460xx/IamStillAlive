@@ -38,6 +38,8 @@ object HeartbeatSyncManager {
 
     // 供外部或 ViewModel 註冊連線恢復回調以即時刷新資料
     var onConnectionRestoredListener: (() -> Unit)? = null
+    // 供外部或 ViewModel 註冊打卡成功回調以即時刷新安全狀態與紀錄
+    var onCheckInSuccessListener: (() -> Unit)? = null
 
     fun init(context: Context) {
         val application = context.applicationContext
@@ -157,12 +159,51 @@ object HeartbeatSyncManager {
     }
 
     /**
+     * 處理手機關機廣播事件 (ACTION_SHUTDOWN / QUICKBOOT_POWEROFF)
+     */
+    fun handleDeviceShutdown(context: Context) {
+        val session = SessionManager(context)
+        val userId = session.userId
+        if (userId.isNullOrBlank()) {
+            Log.w(TAG, "⚠️ 使用者尚未登入，略過關機打卡處理")
+            return
+        }
+
+        val nowIso = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        // 1. 先寫入本地 Pending 暫存，確保即使當下關機斷電未發送成功，下次開機連網也能立即補傳該關機時間
+        session.savePendingCheckIn(
+            timestamp = nowIso,
+            remark = "手機關機前自動報平安",
+            networkType = "DeviceShutdown"
+        )
+        Log.i(TAG, "🔌 偵測到手機即將關機！已記錄關機時間 [$nowIso]，正在進行斷電前快速心跳報備...")
+
+        // 2. 啟動非同步 Coroutine，嘗試在系統斷電前最後幾秒內把心跳送出
+        scope.launch {
+            val success = executeCheckInSync(
+                context,
+                isInstantRetry = false,
+                overrideIsoTime = nowIso,
+                customNetworkType = "DeviceShutdown",
+                customRemark = "手機關機前自動報平安"
+            )
+            if (success) {
+                Log.i(TAG, "🔌 [關機心跳] 成功在手機斷電前送達伺服器！")
+            } else {
+                Log.w(TAG, "⚠️ [關機心跳] 斷電前未能送達伺服器，已留置於本地暫存，待下次開機連網瞬時補傳")
+            }
+        }
+    }
+
+    /**
      * 核心同步執行方法（具備 Mutex 防重疊並發鎖）
      */
     private suspend fun executeCheckInSync(
         context: Context,
         isInstantRetry: Boolean,
-        overrideIsoTime: String? = "USE_PENDING"
+        overrideIsoTime: String? = "USE_PENDING",
+        customNetworkType: String? = null,
+        customRemark: String? = null
     ): Boolean {
         if (!syncMutex.tryLock()) {
             Log.d(TAG, "已有同步任務正在執行中，略過重疊執行")
@@ -188,34 +229,51 @@ object HeartbeatSyncManager {
                 overrideIsoTime
             }
 
-            val tagPrefix = if (isInstantRetry) "⚡ [瞬時重試]" else if (checkInTimestamp == null) "📱 [解鎖即時]" else "⏱️ [退避重試]"
-            Log.d(TAG, "$tagPrefix 正在發送打卡心跳 API (打卡時間: $checkInTimestamp)...")
+            val finalNetworkType = customNetworkType ?: if (isInstantRetry) {
+                if (pending?.networkType == "DeviceShutdown") "DeviceShutdown" else "NetworkRestoredInstant"
+            } else if (checkInTimestamp == null) {
+                "ScreenUnlock"
+            } else {
+                pending?.networkType ?: "OfflineBackoffRetry"
+            }
+
+            val finalRemark = customRemark ?: if (isInstantRetry) {
+                if (pending?.networkType == "DeviceShutdown") "手機關機補傳 (連網瞬時補傳)" else "螢幕解鎖自動報平安 (連網瞬時補傳)"
+            } else if (checkInTimestamp == null) {
+                "螢幕解鎖自動報平安"
+            } else {
+                pending?.remark ?: "螢幕解鎖自動報平安 (離線退避補傳)"
+            }
+
+            val tagPrefix = if (customNetworkType != null) "🔌 [$customNetworkType]" else if (isInstantRetry) "⚡ [瞬時重試]" else if (checkInTimestamp == null) "📱 [解鎖即時]" else "⏱️ [退避重試]"
+            Log.d(TAG, "$tagPrefix 正在發送打卡心跳 API (類型: $finalNetworkType, 打卡時間: $checkInTimestamp)...")
 
             val api = ImsaApiService.create(session.serverUrl)
             val request = UserCheckInRequest(
                 phone = session.phone,
                 deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL}",
-                networkType = if (isInstantRetry) "NetworkRestoredInstant" else if (checkInTimestamp == null) "ScreenUnlock" else "OfflineBackoffRetry",
-                remark = if (isInstantRetry) "螢幕解鎖自動報平安 (連網瞬時補傳)" else if (checkInTimestamp == null) "螢幕解鎖自動報平安" else "螢幕解鎖自動報平安 (離線退避補傳)",
+                networkType = finalNetworkType,
+                remark = finalRemark,
                 checkInTime = checkInTimestamp
             )
             val response = api.checkIn(userId, request)
 
             if (response.isSuccessful && response.body() != null) {
                 val data = response.body()!!
-                Log.i(TAG, "🎉 $tagPrefix 成功上傳心跳！後端已記錄解鎖時間: ${data.checkInTime}，下次截止: ${data.nextCheckInDeadline}")
+                Log.i(TAG, "🎉 $tagPrefix 成功上傳心跳！後端已記錄打卡時間: ${data.checkInTime}，下次截止: ${data.nextCheckInDeadline}")
                 session.clearPendingCheckIn()
                 session.safetyStatus = data.safetyStatus
                 session.nextDeadline = data.nextCheckInDeadline
                 currentRetryIntervalMs = INITIAL_RETRY_INTERVAL_MS
                 setDisconnected(false, context)
+                onCheckInSuccessListener?.invoke()
                 return true
             } else {
                 Log.w(TAG, "⚠️ $tagPrefix 打心跳 API 回應失敗 (${response.code()})")
                 return false
             }
         } catch (e: Exception) {
-            val tagPrefix = if (isInstantRetry) "⚡ [瞬時重試]" else "⏱️ [同步打卡]"
+            val tagPrefix = if (customNetworkType != null) "🔌 [$customNetworkType]" else if (isInstantRetry) "⚡ [瞬時重試]" else "⏱️ [同步打卡]"
             Log.w(TAG, "❌ $tagPrefix 連線異常 (${e.localizedMessage})")
             return false
         } finally {

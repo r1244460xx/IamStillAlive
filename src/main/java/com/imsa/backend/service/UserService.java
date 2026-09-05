@@ -84,7 +84,7 @@ public class UserService {
 
         LocalDateTime now = LocalDateTime.now();
         user.setLastActiveAt(now);
-        if (user.getSafetyStatus() == SafetyStatus.ALERTED) {
+        if (user.getSafetyStatus() != SafetyStatus.SAFE) {
             user.setSafetyStatus(SafetyStatus.SAFE);
         }
         User savedUser = userRepository.save(user);
@@ -224,10 +224,11 @@ public class UserService {
             user.setLastActiveAt(eventTime);
         }
 
-        // 如果先前處於警報狀態，自動解除並重置回 SAFE
-        if (user.getSafetyStatus() == SafetyStatus.ALERTED) {
+        // 如果先前處於警報或預警狀態，自動解除並重置回 SAFE
+        if (user.getSafetyStatus() != SafetyStatus.SAFE) {
+            SafetyStatus oldStatus = user.getSafetyStatus();
             user.setSafetyStatus(SafetyStatus.SAFE);
-            log.info("💚 使用者 [{}] 完成打卡，安全狀態已由 ALERTED 重置為 SAFE！", user.getNickname());
+            log.info("💚 使用者 [{}] 完成打卡，安全狀態已由 {} 重置為 SAFE！", user.getNickname(), oldStatus);
         }
         userRepository.save(user);
 

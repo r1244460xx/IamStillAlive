@@ -68,26 +68,31 @@ fun HomeScreen(
 
             // 1. 安全狀態與解鎖守護核心面板
             val isAlerted = state.safetyStatus == "ALERTED"
+            val isWarning = state.safetyStatus == "WARNING"
             val isOffline = state.isDisconnected
 
             val cardBg = when {
                 isOffline -> WarningYellowBg
                 isAlerted -> AlertRedBg
+                isWarning -> WarningOrangeBg
                 else -> SafeGreenBg
             }
             val circleBg = when {
                 isOffline -> WarningYellow
                 isAlerted -> AlertRed
+                isWarning -> WarningOrange
                 else -> PrimaryGreen
             }
             val titleColor = when {
                 isOffline -> WarningYellowDark
                 isAlerted -> AlertRed
+                isWarning -> WarningOrangeDark
                 else -> PrimaryGreenDark
             }
             val circleIcon = when {
                 isOffline -> Icons.Default.CloudOff
                 isAlerted -> Icons.Default.Warning
+                isWarning -> Icons.Default.NotificationsActive
                 else -> Icons.Default.Shield
             }
 
@@ -122,7 +127,8 @@ fun HomeScreen(
                     Text(
                         text = when {
                             isOffline -> "斷線無法上傳"
-                            isAlerted -> "⚠️ 安全警報已觸發"
+                            isAlerted -> "🚨 安全警報已觸發"
+                            isWarning -> "⚠️ 接近 24 小時未打卡"
                             else -> "平安守護中"
                         },
                         fontWeight = FontWeight.Bold,
@@ -136,6 +142,7 @@ fun HomeScreen(
                         text = when {
                             isOffline -> "目前心跳 API 無法連線，打卡記錄無法上傳。\n已在手機保留最近一次解鎖，連網時將立即補傳。"
                             isAlerted -> "已超過 24 小時未偵測到手機解鎖！緊急聯絡人已收到通報。"
+                            isWarning -> "您已超過 22 小時未解鎖手機！請隨意使用手機或解鎖。\n若滿 24 小時系統將正式通報緊急聯絡人。"
                             else -> "免手動操作・每次解鎖螢幕自動向守護中心報平安"
                         },
                         fontSize = 13.sp,

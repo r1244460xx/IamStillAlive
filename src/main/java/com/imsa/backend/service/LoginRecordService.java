@@ -43,10 +43,10 @@ public class LoginRecordService {
         // 更新使用者的最後活躍時間
         user.setLastActiveAt(savedRecord.getLoginTime());
 
-        // 若使用者先前處於 ALERTED 警報狀態，重新打卡後自動解除警報並重置為 SAFE
-        if (user.getSafetyStatus() == SafetyStatus.ALERTED) {
+        // 若使用者先前處於 ALERTED 警報或 WARNING 預警狀態，重新打卡後自動解除並重置為 SAFE
+        if (user.getSafetyStatus() != SafetyStatus.SAFE) {
             user.setSafetyStatus(SafetyStatus.SAFE);
-            log.info("💚 使用者 [{}] (ID: {}) 重新完成登入打卡，安全警報狀態已自動解除並重置為 SAFE！", 
+            log.info("💚 使用者 [{}] (ID: {}) 重新完成登入打卡，安全狀態已自動解除並重置為 SAFE！", 
                     user.getNickname(), user.getId());
         }
         userRepository.save(user);
