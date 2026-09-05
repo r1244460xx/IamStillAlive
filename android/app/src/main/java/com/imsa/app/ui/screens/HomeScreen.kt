@@ -29,9 +29,7 @@ import com.imsa.app.ui.theme.*
 @Composable
 fun HomeScreen(
     state: MainUiState,
-    onCheckIn: () -> Unit = {},
     onRefresh: () -> Unit,
-    onTriggerWorkManager: () -> Unit = {},
     onNavigateToChangePassword: () -> Unit = {},
     onNavigateToChangeEmergencyContact: () -> Unit = {},
     onLogout: () -> Unit

@@ -65,9 +65,7 @@ class MainActivity : ComponentActivity() {
                                 MainScreen.HOME -> {
                                     HomeScreen(
                                         state = state,
-                                        onCheckIn = { viewModel.checkIn() },
                                         onRefresh = { viewModel.refreshData() },
-                                        onTriggerWorkManager = { viewModel.triggerBackgroundHeartbeat() },
                                         onNavigateToChangePassword = {
                                             viewModel.clearError()
                                             currentMainScreen = MainScreen.CHANGE_PASSWORD

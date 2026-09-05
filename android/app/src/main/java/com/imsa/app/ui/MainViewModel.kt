@@ -197,57 +197,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun checkIn(remark: String = "手機 App 一鍵打卡報平安") {
-        val currentUserId = _uiState.value.userId
-        if (currentUserId.isBlank() && session.phone.isNullOrBlank()) return
-
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, message = null)
-            try {
-                val req = UserCheckInRequest(
-                    phone = session.phone,
-                    deviceInfo = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})",
-                    networkType = "Wi-Fi",
-                    remark = remark
-                )
-                val resp = api.checkIn(currentUserId, req)
-                if (resp.isSuccessful && resp.body() != null) {
-                    val data = resp.body()!!
-                    if (!data.userId.isNullOrBlank() && data.userId != currentUserId) {
-                        session.userId = data.userId
-                        _uiState.value = _uiState.value.copy(userId = data.userId)
-                    }
-                    session.safetyStatus = data.safetyStatus
-                    session.nextDeadline = data.nextCheckInDeadline
-
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        safetyStatus = data.safetyStatus,
-                        nextDeadline = data.nextCheckInDeadline,
-                        message = data.message,
-                        isError = false
-                    )
-                    com.imsa.app.util.HeartbeatSyncManager.setDisconnected(false, getApplication())
-                    fetchHistory()
-                } else {
-                    val err = resp.errorBody()?.string() ?: "打卡失敗"
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        message = err,
-                        isError = true
-                    )
-                    com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
-                }
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    message = "連線失敗: ${e.localizedMessage}",
-                    isError = true
-                )
-                com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
-            }
-        }
-    }
 
     fun refreshData() {
         val pending = session.getPendingCheckIn()
@@ -389,10 +338,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun triggerBackgroundHeartbeat() {
-        com.imsa.app.worker.SafetyCheckInWorker.triggerImmediateHeartbeat(getApplication())
-        _uiState.value = _uiState.value.copy(message = "⚡ 已觸發 WorkManager 背景心跳打卡！")
-    }
 
     fun logout() {
         session.logout()
