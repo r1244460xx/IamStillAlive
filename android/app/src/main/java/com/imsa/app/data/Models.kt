@@ -13,6 +13,11 @@ data class UserRegisterRequest(
     val emergencyContactPhone: String? = null
 )
 
+data class UserLoginRequest(
+    val phone: String,
+    val password: String
+)
+
 data class UserResponse(
     val id: String,
     val phone: String,

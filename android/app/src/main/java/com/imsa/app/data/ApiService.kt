@@ -18,6 +18,9 @@ interface ImsaApiService {
     @POST("api/users/register")
     suspend fun register(@Body request: UserRegisterRequest): Response<UserResponse>
 
+    @POST("api/users/login")
+    suspend fun login(@Body request: UserLoginRequest): Response<UserResponse>
+
     @GET("api/users/{id}")
     suspend fun getUserProfile(@Path("id") id: String): Response<UserResponse>
 
