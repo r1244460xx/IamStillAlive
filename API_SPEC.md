@@ -217,9 +217,13 @@
 
 ---
 
-## 4. Android 用戶端架構與背景守護實作規格 (Android Client Specifications)
+## 4. Android 用戶端架構與核心守護規格 (Android Client Specifications)
 
-IMSA Android 應用採用 Google 官方推薦之現代化架構（Modern Android Architecture），結合 Jetpack Compose、MVVM 模式與雙軌背景守護機制，確保在各種極端情境（如 App 被手動滑掉、手機重開機等）下皆能穩定維持無感報平安功能。
+> [!IMPORTANT]
+> **核心業務守護規則 (重要需求記錄)**：
+> 依據產品核心定位，用戶端**不需要使用者手動點擊（如首頁大圓形按鈕）來主動打卡**，也**不需要在背後設定固定間隔（如 12 小時）定時自動打卡**。
+> **對 Android App 而言，唯一需要且必須嘗試執行打卡報平安的時機，就是「使用者無論是否使用密碼解鎖螢幕」的當下。**
+> 只要使用者有日常使用手機的動作（點亮解鎖），系統便自動在背景完成活躍證明；若整天完全沒有解鎖手機，則視為潛在異常並依後端超時機制通報。
 
 ### 4.1 前後端 API 規格對接與覆蓋率矩陣
 
@@ -228,32 +232,29 @@ IMSA Android 應用採用 Google 官方推薦之現代化架構（Modern Android
 | `/api/users/register` | `POST` | `register(request)` | ✅ **已對接**：註冊畫面填寫表單完成後呼叫，成功後即時儲存 Session 並啟動守護。 |
 | `/api/users/{id}` | `GET` | `getUserProfile(id)` | ✅ **已對接**：進入首頁或手動重新整理時同步用戶最新資訊與狀態。 |
 | `/api/users/{id}` | `PUT` | `updateUserProfile(id, request)` | ✅ **介面已就緒**：資料層支援修改個人檔案與緊急聯絡人。 |
-| `/api/users/{id}/check-in` | `POST` | `checkIn(id, request)` | ✅ **核心打卡端點**：由首頁「一鍵報平安」大圓圈、WorkManager 心跳與螢幕解鎖守護服務共同調用。 |
+| `/api/users/{id}/check-in` | `POST` | `checkIn(id, request)` | ✅ **核心打卡端點**：由螢幕解鎖守護服務自動調用（手動打卡僅為除錯保留）。 |
 | `/api/login-records/user/{userId}` | `GET` | `getLoginRecords(userId)` | ✅ **已對接**：首頁「近期打卡紀錄」列表資料來源，按時間倒序顯示最近打卡。 |
 | `/api/login-records/{id}` | `DELETE` | `deleteLoginRecord(id)` | ✅ **介面已就緒**：底層登入紀錄單筆刪除功能。 |
 | `/api/login-records` (通用 CRUD) | `POST`/`PUT`/`GET` | *(由語意端點替代)* | 由專屬的 `/check-in` 語意端點封裝，自動更新 `lastActiveAt` 並重置為 `SAFE`。 |
 
 ---
 
-### 4.2 雙軌背景自動報平安守護系統 (Two-tier Background Heartbeat)
+### 4.2 核心解鎖守護機制 (`SafetyGuardianAccessibilityService`)
 
-為達成**「使用者完全無需開 App，甚至即使把 App 從最近任務滑除手動殺掉，也能在日常使用手機時自動報平安」**之核心承諾，Android 端實作了雙軌背景機制：
+為落實「使用者日常完全無感、不需開 App、不需手動打卡、移除任務卡片依舊生效」的核心目標：
 
-#### 軌道一：WorkManager 週期性心跳保底 (`SafetyCheckInWorker`)
-* **執行週期**：每 12 小時自動排程觸發一次。
-* **約束條件**：要求網路連線可用 (`NetworkType.CONNECTED`)。
-* **運作機制**：在背景靜默發送 `POST /api/users/{id}/check-in`，備註標註為 `系統背景定時心跳包報平安 (無感守護)`，將後端安全截止時間持續向後展延 24 小時。
-
-#### 軌道二：系統級無障礙常駐守護進程 (`SafetyGuardianAccessibilityService`)
+#### 系統級常駐無障礙守護進程
 * **系統綁定機制**：註冊於 Android OS 無障礙服務架構（`android.permission.BIND_ACCESSIBILITY_SERVICE`），由 Android 系統伺服器（`system_server`）直接持有並管理 Service 生命週期。
 * **抗殺進程 (Survive Task Kill)**：當使用者手動將主 App 從 Recent Tasks 卡片向上滑動銷毀時，系統僅銷毀 Activity 視圖，無障礙守護進程維持 `PROC_STATE_PERSISTENT` 常駐狀態，完全不受影響。
-* **螢幕解鎖動態監聽**：動態註冊廣播接收器監聽系統級意圖：
+* **螢幕解鎖動態監聽 (唯一觸發源)**：動態註冊廣播接收器監聽系統級意圖：
   * `Intent.ACTION_USER_PRESENT`：有鎖定密碼/圖形時，使用者解鎖進入手機觸發。
   * `Intent.ACTION_SCREEN_ON` (搭配 `!keyguardManager.isKeyguardLocked`)：無設密碼時，點亮螢幕即觸發。
 * **15 秒防洗版節流器 (Debounce Window)**：
   在廣播接收處設置 `15,000ms` 冷卻時間。若使用者頻繁開關螢幕（例如看時間、連續鎖屏解鎖），15 秒內的重疊事件直接攔截，絕不濫發打卡請求或浪費網路流量。
 * **零通知欄干擾 (Zero Notification Footprint)**：
   捨棄傳統 Foreground Service 必須強行常駐的紙片卡片通知，通知欄完全乾淨，不干擾使用者日常視覺觀感。
+* **輔助發送器 (`SafetyCheckInWorker`)**：
+  由守護進程以單次任務（OneTimeWorkRequest）調度派發，確保在網路受約束時由系統安全執行連線打卡。原 12 小時定時排程已標記為非核心/已棄用。
 
 ---
 
