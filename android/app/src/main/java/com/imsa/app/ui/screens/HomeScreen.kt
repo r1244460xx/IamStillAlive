@@ -50,9 +50,6 @@ fun HomeScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onRefresh) {
-                        Icon(Icons.Default.Refresh, contentDescription = "刷新")
-                    }
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Default.Logout, contentDescription = "切換帳號")
                     }

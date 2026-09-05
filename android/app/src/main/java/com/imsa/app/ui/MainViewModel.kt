@@ -343,19 +343,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         newPhone: String,
         onSuccess: () -> Unit
     ) {
-        val currentUserId = _uiState.value.userId
-        if (currentUserId.isBlank()) return
+        val currentUserId = _uiState.value.userId.ifBlank { session.userId.orEmpty() }
+        val phone = session.phone
+        if (currentUserId.isBlank() && phone.isNullOrBlank()) return
 
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, message = null, errorMessage = null, isError = false)
             try {
                 val req = UserEmergencyContactUpdateRequest(emergencyContactPhone = newPhone)
-                val resp = api.updateEmergencyContact(currentUserId, req)
+                val resp = api.updateEmergencyContact(currentUserId, phone, req)
                 if (resp.isSuccessful && resp.body() != null) {
                     val user = resp.body()!!
+                    if (session.userId != user.id) {
+                        session.userId = user.id
+                    }
                     session.saveUser(user)
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
+                        userId = user.id,
+                        nickname = user.nickname,
+                        phone = user.phone,
                         emergencyContact = user.emergencyContactPhone,
                         message = "緊急聯絡人電話已更新！",
                         isError = false

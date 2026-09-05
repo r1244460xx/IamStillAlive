@@ -156,9 +156,20 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponse updateEmergencyContact(UUID userId, String emergencyContactPhone) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("找不到該使用者"));
+    public UserResponse updateEmergencyContact(UUID userId, String phone, String emergencyContactPhone) {
+        User user = null;
+        if (userId != null) {
+            user = userRepository.findById(userId).orElse(null);
+        }
+        if (user == null && phone != null && !phone.isBlank()) {
+            user = userRepository.findByPhone(phone).orElse(null);
+            if (user != null) {
+                log.info("🔄 updateEmergencyContact: 透過手機門號 [{}] 自動找回對應使用者 (ID: {})", phone, user.getId());
+            }
+        }
+        if (user == null) {
+            throw new IllegalArgumentException("找不到該使用者");
+        }
 
         user.setEmergencyContactPhone(emergencyContactPhone);
         User updated = userRepository.save(user);

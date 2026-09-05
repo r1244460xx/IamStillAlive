@@ -43,6 +43,7 @@ interface ImsaApiService {
     @PUT("api/users/{id}/emergency-contact")
     suspend fun updateEmergencyContact(
         @Path("id") id: String,
+        @Query("phone") phone: String? = null,
         @Body request: UserEmergencyContactUpdateRequest
     ): Response<UserResponse>
 

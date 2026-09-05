@@ -57,8 +57,9 @@ public class UserController {
     @PutMapping("/{id}/emergency-contact")
     public ResponseEntity<UserResponse> updateEmergencyContact(
             @PathVariable UUID id,
+            @RequestParam(required = false) String phone,
             @Valid @RequestBody UserEmergencyContactUpdateRequest request) {
-        UserResponse response = userService.updateEmergencyContact(id, request.getEmergencyContactPhone());
+        UserResponse response = userService.updateEmergencyContact(id, phone, request.getEmergencyContactPhone());
         return ResponseEntity.ok(response);
     }
 
