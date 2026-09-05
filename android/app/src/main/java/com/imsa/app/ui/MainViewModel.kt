@@ -249,6 +249,90 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun changePassword(
+        oldPass: String,
+        newPass: String,
+        onSuccess: () -> Unit
+    ) {
+        val currentUserId = _uiState.value.userId
+        if (currentUserId.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, message = null, errorMessage = null, isError = false)
+            try {
+                val req = UserPasswordChangeRequest(oldPassword = oldPass, newPassword = newPass)
+                val resp = api.changePassword(currentUserId, req)
+                if (resp.isSuccessful) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = "密碼已成功變更！",
+                        isError = false
+                    )
+                    onSuccess()
+                } else {
+                    val rawErr = resp.errorBody()?.string()
+                    val msg = parseError(rawErr, "修改密碼失敗 (${resp.code()})")
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = msg,
+                        errorMessage = msg,
+                        isError = true
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    message = "連線失敗: ${e.localizedMessage}",
+                    errorMessage = "連線失敗: ${e.localizedMessage}",
+                    isError = true
+                )
+            }
+        }
+    }
+
+    fun updateEmergencyContact(
+        newPhone: String,
+        onSuccess: () -> Unit
+    ) {
+        val currentUserId = _uiState.value.userId
+        if (currentUserId.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, message = null, errorMessage = null, isError = false)
+            try {
+                val req = UserEmergencyContactUpdateRequest(emergencyContactPhone = newPhone)
+                val resp = api.updateEmergencyContact(currentUserId, req)
+                if (resp.isSuccessful && resp.body() != null) {
+                    val user = resp.body()!!
+                    session.saveUser(user)
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        emergencyContact = user.emergencyContactPhone,
+                        message = "緊急聯絡人電話已更新！",
+                        isError = false
+                    )
+                    onSuccess()
+                } else {
+                    val rawErr = resp.errorBody()?.string()
+                    val msg = parseError(rawErr, "更新失敗 (${resp.code()})")
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = msg,
+                        errorMessage = msg,
+                        isError = true
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    message = "連線失敗: ${e.localizedMessage}",
+                    errorMessage = "連線失敗: ${e.localizedMessage}",
+                    isError = true
+                )
+            }
+        }
+    }
+
     fun triggerBackgroundHeartbeat() {
         com.imsa.app.worker.SafetyCheckInWorker.triggerImmediateHeartbeat(getApplication())
         _uiState.value = _uiState.value.copy(message = "⚡ 已觸發 WorkManager 背景心跳打卡！")

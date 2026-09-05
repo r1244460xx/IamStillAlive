@@ -70,3 +70,16 @@ data class LoginRecordResponse(
     val networkType: String?,
     val remark: String?
 )
+
+data class UserPasswordChangeRequest(
+    val oldPassword: String,
+    val newPassword: String
+)
+
+data class UserEmergencyContactUpdateRequest(
+    val emergencyContactPhone: String
+)
+
+data class MessageResponse(
+    val message: String
+)

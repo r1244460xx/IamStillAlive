@@ -30,6 +30,18 @@ interface ImsaApiService {
         @Body request: UserUpdateRequest
     ): Response<UserResponse>
 
+    @PUT("api/users/{id}/password")
+    suspend fun changePassword(
+        @Path("id") id: String,
+        @Body request: UserPasswordChangeRequest
+    ): Response<MessageResponse>
+
+    @PUT("api/users/{id}/emergency-contact")
+    suspend fun updateEmergencyContact(
+        @Path("id") id: String,
+        @Body request: UserEmergencyContactUpdateRequest
+    ): Response<UserResponse>
+
     @POST("api/users/{id}/check-in")
     suspend fun checkIn(
         @Path("id") id: String,

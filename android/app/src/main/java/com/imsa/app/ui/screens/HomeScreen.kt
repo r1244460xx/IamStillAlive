@@ -2,6 +2,7 @@ package com.imsa.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,6 +32,8 @@ fun HomeScreen(
     onCheckIn: () -> Unit = {},
     onRefresh: () -> Unit,
     onTriggerWorkManager: () -> Unit = {},
+    onNavigateToChangePassword: () -> Unit = {},
+    onNavigateToChangeEmergencyContact: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     Scaffold(
@@ -49,6 +52,9 @@ fun HomeScreen(
                 actions = {
                     IconButton(onClick = onRefresh) {
                         Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                    }
+                    IconButton(onClick = onNavigateToChangePassword) {
+                        Icon(Icons.Default.ManageAccounts, contentDescription = "帳號與安全設定")
                     }
                     IconButton(onClick = onLogout) {
                         Icon(Icons.Default.Logout, contentDescription = "切換帳號")
@@ -158,15 +164,27 @@ fun HomeScreen(
             // 3. 緊急聯絡人資訊
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(vertical = 2.dp)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp)
             ) {
-                Icon(Icons.Default.Shield, null, tint = Slate500, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "緊急通報電話：${state.emergencyContact ?: "尚未設定"}",
-                    fontSize = 12.sp,
-                    color = Slate500
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Shield, null, tint = Slate500, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "緊急通報：${state.emergencyContact ?: "尚未設定"}",
+                        fontSize = 12.sp,
+                        color = Slate500
+                    )
+                }
+                TextButton(
+                    onClick = onNavigateToChangeEmergencyContact,
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                    modifier = Modifier.height(26.dp)
+                ) {
+                    Text("修改 ➔", fontSize = 11.sp, color = AccentBlue)
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -265,9 +283,50 @@ fun HomeScreen(
                 }
             }
 
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 5. 帳號與安全設定卡片
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Slate100)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { onNavigateToChangePassword() }
+                            .padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.LockReset, null, tint = Slate700, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("修改密碼 ➔", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Slate700)
+                    }
+                    Text("|", color = Slate400, fontSize = 12.sp)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .clickable { onNavigateToChangeEmergencyContact() }
+                            .padding(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.ContactPhone, null, tint = Slate700, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("修改緊急聯絡人 ➔", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Slate700)
+                    }
+                }
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 5. 最近打卡歷史紀錄
+            // 6. 最近打卡歷史紀錄
             Text(
                 text = "近期打卡紀錄",
                 fontWeight = FontWeight.Bold,
