@@ -22,7 +22,9 @@ data class MainUiState(
     val nextDeadline: String? = null,
     val recentRecords: List<LoginRecordResponse> = emptyList(),
     val message: String? = null,
-    val isError: Boolean = false
+    val isError: Boolean = false,
+    val errorMessage: String? = null,
+    val isPhoneConflict: Boolean = false
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -55,6 +57,49 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun login(phone: String, pass: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, message = null)
+            try {
+                val req = UserLoginRequest(phone = phone, password = pass)
+                val resp = api.login(req)
+                if (resp.isSuccessful && resp.body() != null) {
+                    val user = resp.body()!!
+                    session.saveUser(user)
+                    com.imsa.app.worker.SafetyCheckInWorker.cancelPeriodicHeartbeat(getApplication())
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isLoggedIn = true,
+                        userId = user.id,
+                        nickname = user.nickname,
+                        phone = user.phone,
+                        emergencyContact = user.emergencyContactPhone,
+                        safetyStatus = user.safetyStatus,
+                        message = "登入成功！歡迎回來，${user.nickname}。",
+                        isError = false
+                    )
+                    refreshData()
+                } else {
+                    val rawErr = resp.errorBody()?.string()
+                    val parsedMsg = parseError(rawErr, "登入失敗 (${resp.code()})")
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = parsedMsg,
+                        errorMessage = parsedMsg,
+                        isError = true
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    message = "無法連線至後端: ${e.localizedMessage}",
+                    errorMessage = "無法連線至後端: ${e.localizedMessage}",
+                    isError = true
+                )
+            }
+        }
+    }
+
     fun register(
         phone: String,
         pass: String,
@@ -62,7 +107,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         emergencyPhone: String
     ) {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, message = null)
+            _uiState.value = _uiState.value.copy(
+                isLoading = true, 
+                message = null,
+                errorMessage = null,
+                isPhoneConflict = false
+            )
             try {
                 val req = UserRegisterRequest(
                     phone = phone,
@@ -86,14 +136,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         emergencyContact = user.emergencyContactPhone,
                         safetyStatus = user.safetyStatus,
                         message = "註冊成功！守護已啟動。",
+                        errorMessage = null,
+                        isPhoneConflict = false,
                         isError = false
                     )
                     refreshData()
                 } else {
-                    val err = resp.errorBody()?.string() ?: "註冊失敗 (${resp.code()})"
+                    val rawErr = resp.errorBody()?.string()
+                    val parsedMsg = parseError(rawErr, "註冊失敗 (${resp.code()})")
+                    val isConflict = resp.code() == 400 && (parsedMsg.contains("已註冊") || parsedMsg.contains("電話") || parsedMsg.contains("手機"))
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
-                        message = err,
+                        message = parsedMsg,
+                        errorMessage = parsedMsg,
+                        isPhoneConflict = isConflict,
                         isError = true
                     )
                 }
@@ -101,6 +157,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     message = "無法連線至後端: ${e.localizedMessage}",
+                    errorMessage = "無法連線至後端: ${e.localizedMessage}",
                     isError = true
                 )
             }
@@ -202,5 +259,32 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(message = null)
+    }
+
+    fun clearError() {
+        _uiState.value = _uiState.value.copy(
+            message = null,
+            errorMessage = null,
+            isPhoneConflict = false,
+            isError = false
+        )
+    }
+
+    private fun parseError(rawBody: String?, defaultMsg: String): String {
+        if (rawBody.isNullOrBlank()) return defaultMsg
+        return try {
+            val json = org.json.JSONObject(rawBody)
+            when {
+                json.has("error") -> json.getString("error")
+                json.has("message") -> json.getString("message")
+                json.has("phone") -> json.getString("phone")
+                else -> {
+                    val keys = json.keys()
+                    if (keys.hasNext()) json.getString(keys.next()) else defaultMsg
+                }
+            }
+        } catch (e: Exception) {
+            rawBody
+        }
     }
 }
