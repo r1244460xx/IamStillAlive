@@ -1,6 +1,10 @@
 package com.imsa.app.util
 
+import android.app.AlarmManager
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -10,6 +14,7 @@ import android.util.Log
 import com.imsa.app.data.ImsaApiService
 import com.imsa.app.data.SessionManager
 import com.imsa.app.data.UserCheckInRequest
+import com.imsa.app.receiver.PreAlertNotificationReceiver
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -50,6 +55,10 @@ object HeartbeatSyncManager {
 
         if (session.isDisconnected && session.getPendingCheckIn() != null) {
             startRetryLoop(application)
+        }
+
+        if (session.isLoggedIn()) {
+            schedulePreAlertAlarm(application)
         }
     }
 
@@ -145,6 +154,9 @@ object HeartbeatSyncManager {
             remark = "螢幕解鎖自動報平安",
             networkType = "ScreenUnlock"
         )
+        // 2. 解鎖即時清除已顯示的 22 小時預警卡片，並重新預約 22 小時預警鬧鐘
+        cancelPreAlertNotification(context)
+        schedulePreAlertAlarm(context)
         Log.i(TAG, "📱 偵測到手機螢幕解鎖！已更新手機端最近一筆打卡紀錄 [$nowIso]，立即嘗試發送心跳 API...")
 
         scope.launch {
@@ -266,6 +278,8 @@ object HeartbeatSyncManager {
                 session.nextDeadline = data.nextCheckInDeadline
                 currentRetryIntervalMs = INITIAL_RETRY_INTERVAL_MS
                 setDisconnected(false, context)
+                cancelPreAlertNotification(context)
+                schedulePreAlertAlarm(context)
                 onCheckInSuccessListener?.invoke()
                 return true
             } else {
@@ -341,6 +355,70 @@ object HeartbeatSyncManager {
         val session = SessionManager(context)
         session.isDisconnected = false
         session.clearPendingCheckIn()
-        Log.i(TAG, "🚪 [登出重置] 已終止背景重試迴圈、重置退避間隔與連線狀態並清空打卡暫存")
+        cancelPreAlertNotification(context)
+        cancelPreAlertAlarm(context)
+        Log.i(TAG, "🚪 [登出重置] 已終止背景重試迴圈、取消預警鬧鐘與卡片並清空打卡暫存")
+    }
+
+    /**
+     * 消除目前彈出的 22 小時平安提醒通知卡片
+     */
+    fun cancelPreAlertNotification(context: Context) {
+        try {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.cancel(PreAlertNotificationReceiver.NOTIFICATION_ID)
+            Log.d(TAG, "🔕 [預警消除] 已消除 22 小時平安提醒通知卡片")
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ 清除預警通知失敗: ${e.localizedMessage}")
+        }
+    }
+
+    /**
+     * 排程 22 小時平安預警鬧鐘 (RTC_WAKEUP, setExactAndAllowWhileIdle)
+     */
+    fun schedulePreAlertAlarm(context: Context, delayMillis: Long = 22 * 3600 * 1000L) {
+        try {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+            val intent = Intent(context, PreAlertNotificationReceiver::class.java).apply {
+                action = PreAlertNotificationReceiver.ACTION_TRIGGER_PRE_ALERT
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                PreAlertNotificationReceiver.NOTIFICATION_ID,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val triggerAtMillis = System.currentTimeMillis() + delayMillis
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP,
+                triggerAtMillis,
+                pendingIntent
+            )
+            Log.i(TAG, "⏰ [預警排程] 已設定 22 小時平安預警鬧鐘於 ${delayMillis / 1000 / 3600} 小時後觸發")
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ 設定預警鬧鐘失敗: ${e.localizedMessage}")
+        }
+    }
+
+    /**
+     * 取消已排程之 22 小時平安預警鬧鐘
+     */
+    fun cancelPreAlertAlarm(context: Context) {
+        try {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
+            val intent = Intent(context, PreAlertNotificationReceiver::class.java).apply {
+                action = PreAlertNotificationReceiver.ACTION_TRIGGER_PRE_ALERT
+            }
+            val pendingIntent = PendingIntent.getBroadcast(
+                context,
+                PreAlertNotificationReceiver.NOTIFICATION_ID,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pendingIntent)
+            Log.d(TAG, "🛑 [預警排程] 已取消 22 小時平安預警鬧鐘")
+        } catch (e: Exception) {
+            Log.w(TAG, "⚠️ 取消預警鬧鐘失敗: ${e.localizedMessage}")
+        }
     }
 }
