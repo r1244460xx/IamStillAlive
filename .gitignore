@@ -19,6 +19,6 @@ out/
 Thumbs.db
 
 # Embedded Database
-data/
+/data/
 *.db
 

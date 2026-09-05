@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
@@ -25,18 +26,24 @@ public class DataInitializer implements CommandLineRunner {
     private final LoginRecordRepository loginRecordRepository;
     private final PasswordEncoder passwordEncoder;
 
+    public static final UUID TEST_USER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+    public static final String TEST_USER_PHONE = "0912345678";
+    public static final String TEST_USER_PASSWORD = "pass123456";
+    public static final String TEST_USER_NICKNAME = "測試者";
+    public static final String TEST_USER_EMERGENCY = "0987654321";
+
     @Override
     public void run(String... args) {
-        String testPhone = "0912345678";
-        if (!userRepository.existsByPhone(testPhone)) {
+        if (!userRepository.existsById(TEST_USER_ID)) {
             LocalDateTime now = LocalDateTime.now();
             User demoUser = User.builder()
-                    .phone(testPhone)
-                    .passwordHash(passwordEncoder.encode("pass123456"))
-                    .nickname("測試者")
+                    .id(TEST_USER_ID)
+                    .phone(TEST_USER_PHONE)
+                    .passwordHash(passwordEncoder.encode(TEST_USER_PASSWORD))
+                    .nickname(TEST_USER_NICKNAME)
                     .gender(Gender.OTHER)
                     .birthdate(LocalDate.of(1995, 1, 1))
-                    .emergencyContactPhone("0987654321")
+                    .emergencyContactPhone(TEST_USER_EMERGENCY)
                     .status(UserStatus.ACTIVE)
                     .safetyStatus(SafetyStatus.SAFE)
                     .lastActiveAt(now)
@@ -47,12 +54,14 @@ public class DataInitializer implements CommandLineRunner {
             LoginRecord initialRecord = LoginRecord.builder()
                     .user(saved)
                     .loginTime(now)
+                    .deviceInfo("系統初始化")
+                    .networkType("SystemInit")
                     .remark("系統初始化預設測試帳號")
                     .build();
             loginRecordRepository.save(initialRecord);
 
-            log.info("🌱 [DataInitializer] 已自動建立預設測試帳號：手機 {}, 暱稱 {}, ID {}", 
-                    testPhone, saved.getNickname(), saved.getId());
+            log.info("🌱 [DataInitializer] 已自動建立固定測試帳號：ID {}, 手機 {}, 暱稱 {}", 
+                    saved.getId(), saved.getPhone(), saved.getNickname());
         }
     }
 }

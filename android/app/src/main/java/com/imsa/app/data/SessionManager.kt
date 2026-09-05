@@ -8,6 +8,32 @@ class SessionManager(context: Context) {
     private val prefs: SharedPreferences = 
         context.getSharedPreferences("imsa_user_prefs", Context.MODE_PRIVATE)
 
+    companion object {
+        const val HARDCODED_TEST_USER_ID = "00000000-0000-0000-0000-000000000001"
+        const val HARDCODED_TEST_PHONE = "0912345678"
+        const val HARDCODED_TEST_NICKNAME = "測試者"
+        const val HARDCODED_TEST_EMERGENCY = "0987654321"
+    }
+
+    init {
+        val current = prefs.getString("user_id", null)
+        val currentPhone = prefs.getString("phone", null)
+        // 初次初始化或舊隨機 UUID 自動遷移至固定測試帳號
+        if (current.isNullOrBlank() || (!current.equals(HARDCODED_TEST_USER_ID) && (currentPhone == null || currentPhone == HARDCODED_TEST_PHONE))) {
+            initDefaultTestUser()
+        }
+    }
+
+    fun initDefaultTestUser() {
+        prefs.edit()
+            .putString("user_id", HARDCODED_TEST_USER_ID)
+            .putString("phone", HARDCODED_TEST_PHONE)
+            .putString("nickname", HARDCODED_TEST_NICKNAME)
+            .putString("emergency_contact", HARDCODED_TEST_EMERGENCY)
+            .putString("safety_status", "SAFE")
+            .apply()
+    }
+
     var userId: String?
         get() = prefs.getString("user_id", null)
         set(value) = prefs.edit().putString("user_id", value).apply()
