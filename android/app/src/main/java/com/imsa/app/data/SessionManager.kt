@@ -62,6 +62,10 @@ class SessionManager(context: Context) {
         get() = prefs.getString("server_url", "http://192.168.0.137:8080/") ?: "http://192.168.0.137:8080/"
         set(value) = prefs.edit().putString("server_url", value).apply()
 
+    var isDisconnected: Boolean
+        get() = prefs.getBoolean("is_disconnected", false)
+        set(value) = prefs.edit().putBoolean("is_disconnected", value).apply()
+
     fun isLoggedIn(): Boolean = !userId.isNullOrBlank()
 
     fun saveUser(user: UserResponse) {

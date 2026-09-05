@@ -76,7 +76,7 @@ fun HomeScreen(
 
             // 1. 安全狀態與解鎖守護核心面板
             val isAlerted = state.safetyStatus == "ALERTED"
-            val isOffline = !state.isOnline
+            val isOffline = state.isDisconnected
 
             val cardBg = when {
                 isOffline -> WarningYellowBg
@@ -129,7 +129,7 @@ fun HomeScreen(
 
                     Text(
                         text = when {
-                            isOffline -> "斷網無法上傳"
+                            isOffline -> "斷線無法上傳"
                             isAlerted -> "⚠️ 安全警報已觸發"
                             else -> "平安守護中"
                         },
@@ -142,7 +142,7 @@ fun HomeScreen(
 
                     Text(
                         text = when {
-                            isOffline -> "目前處於斷網狀態，打卡記錄無法上傳。\n已在手機保留最近一次解鎖，恢復連網時將自動補傳。"
+                            isOffline -> "目前心跳 API 無法連線，打卡記錄無法上傳。\n已在手機保留最近一次解鎖，系統每 10 秒自動重試。"
                             isAlerted -> "已超過 24 小時未偵測到手機解鎖！緊急聯絡人已收到通報。"
                             else -> "免手動操作・每次解鎖螢幕自動向守護中心報平安"
                         },
@@ -417,7 +417,7 @@ fun HomeScreen(
                                             color = WarningYellowDark
                                         )
                                         Text(
-                                            text = "手機端暫存最新一筆・連網後自動上傳",
+                                            text = "手機端暫存最新一筆・每 10 秒自動重試補傳",
                                             fontSize = 11.sp,
                                             color = Slate700
                                         )

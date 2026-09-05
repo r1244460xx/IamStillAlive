@@ -11,6 +11,8 @@ import androidx.core.content.ContextCompat
 import com.imsa.app.data.SessionManager
 import com.imsa.app.worker.SafetyCheckInWorker
 
+import com.imsa.app.util.HeartbeatSyncManager
+
 class SafetyGuardianAccessibilityService : AccessibilityService() {
 
     private var unlockReceiver: BroadcastReceiver? = null
@@ -24,12 +26,14 @@ class SafetyGuardianAccessibilityService : AccessibilityService() {
     override fun onCreate() {
         super.onCreate()
         Log.i(TAG, "🛡️ IMSA 無障礙守護服務已創建 (onCreate)")
+        HeartbeatSyncManager.init(applicationContext)
         registerUnlockReceiver()
     }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.i(TAG, "🛡️ IMSA 無障礙守護服務已連接啟動！(系統直接綁定，抗滑掉、零通知欄干擾)")
+        HeartbeatSyncManager.init(applicationContext)
         registerUnlockReceiver()
     }
 
@@ -57,32 +61,7 @@ class SafetyGuardianAccessibilityService : AccessibilityService() {
                     lastUnlockTime = now
                     Log.i(TAG, "📱 偵測到裝置解鎖事件 ($action, KeyguardLocked=$isKeyguardLocked)！準備觸發無感心跳打卡...")
 
-                    val session = SessionManager(applicationContext)
-                    val userId = session.userId
-                    if (!userId.isNullOrBlank()) {
-                        val nowIso = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME)
-                        val isOnline = com.imsa.app.util.NetworkMonitor.isOnline(applicationContext)
-
-                        if (!isOnline) {
-                            Log.i(TAG, "📴 目前處於斷網離線狀態！解鎖時間 [$nowIso] 已暫存為手機端唯一最新紀錄，待連網後自動補傳。")
-                            session.savePendingCheckIn(
-                                timestamp = nowIso,
-                                remark = "螢幕解鎖自動報平安 (離線暫存補傳)",
-                                networkType = "ScreenUnlockOfflineSync"
-                            )
-                            SafetyCheckInWorker.triggerPendingCheckInSync(applicationContext)
-                        } else {
-                            Log.i(TAG, "🌐 網路連線正常，立即送出解鎖心跳打卡 ($nowIso)...")
-                            SafetyCheckInWorker.triggerImmediateHeartbeat(
-                                context = applicationContext,
-                                remark = "螢幕解鎖自動報平安 (無障礙守護進程)",
-                                networkType = "ScreenUnlock",
-                                checkInTime = nowIso
-                            )
-                        }
-                    } else {
-                        Log.w(TAG, "⚠️ 尚未登入使用者，略過解鎖打卡")
-                    }
+                    HeartbeatSyncManager.handleScreenUnlock(applicationContext)
                 }
             }
         }

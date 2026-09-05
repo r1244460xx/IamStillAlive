@@ -14,7 +14,7 @@ import java.time.format.DateTimeFormatter
 data class MainUiState(
     val isLoading: Boolean = false,
     val isLoggedIn: Boolean = false,
-    val isOnline: Boolean = true,
+    val isDisconnected: Boolean = false,
     val pendingCheckIn: PendingCheckIn? = null,
     val userId: String = "",
     val nickname: String = "",
@@ -38,27 +38,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _uiState = MutableStateFlow(
         MainUiState(
             serverUrl = session.serverUrl,
-            isOnline = com.imsa.app.util.NetworkMonitor.isOnline(application),
+            isDisconnected = session.isDisconnected,
             pendingCheckIn = session.getPendingCheckIn()
         )
     )
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
+        com.imsa.app.util.HeartbeatSyncManager.init(application)
+        com.imsa.app.util.HeartbeatSyncManager.onConnectionRestoredListener = {
+            refreshData()
+        }
         loadSession()
-        observeNetwork()
+        observeSyncManager()
     }
 
-    private fun observeNetwork() {
+    private fun observeSyncManager() {
         viewModelScope.launch {
-            com.imsa.app.util.NetworkMonitor.observeNetwork(getApplication()).collect { online ->
-                val wasOffline = !_uiState.value.isOnline
+            com.imsa.app.util.HeartbeatSyncManager.isDisconnectedFlow.collect { disconnected ->
+                val wasDisconnected = _uiState.value.isDisconnected
                 _uiState.value = _uiState.value.copy(
-                    isOnline = online,
+                    isDisconnected = disconnected,
                     pendingCheckIn = session.getPendingCheckIn()
                 )
-                // 若由斷網轉為連網，自動同步資料
-                if (wasOffline && online && session.isLoggedIn()) {
+                // 若由斷線轉為連線，自動刷新資料
+                if (wasDisconnected && !disconnected && session.isLoggedIn()) {
                     refreshData()
                 }
             }
@@ -223,6 +227,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         message = data.message,
                         isError = false
                     )
+                    com.imsa.app.util.HeartbeatSyncManager.setDisconnected(false, getApplication())
                     fetchHistory()
                 } else {
                     val err = resp.errorBody()?.string() ?: "打卡失敗"
@@ -231,6 +236,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         message = err,
                         isError = true
                     )
+                    com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
                 }
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
@@ -238,6 +244,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     message = "連線失敗: ${e.localizedMessage}",
                     isError = true
                 )
+                com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
             }
         }
     }
@@ -265,10 +272,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         emergencyContact = user.emergencyContactPhone,
                         safetyStatus = user.safetyStatus
                     )
+                    com.imsa.app.util.HeartbeatSyncManager.setDisconnected(false, getApplication())
+                } else {
+                    com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
                 }
                 fetchHistory()
             } catch (e: Exception) {
-                // Background refresh error, don't block UI
+                com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
             }
         }
     }
