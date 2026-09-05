@@ -164,27 +164,17 @@ fun HomeScreen(
             // 3. 緊急聯絡人資訊
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 2.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Shield, null, tint = Slate500, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "緊急通報：${state.emergencyContact ?: "尚未設定"}",
-                        fontSize = 12.sp,
-                        color = Slate500
-                    )
-                }
-                TextButton(
-                    onClick = onNavigateToChangeEmergencyContact,
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-                    modifier = Modifier.height(26.dp)
-                ) {
-                    Text("修改 ➔", fontSize = 11.sp, color = AccentBlue)
-                }
+                Icon(Icons.Default.Shield, null, tint = Slate500, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "緊急通報：${state.emergencyContact ?: "尚未設定"}",
+                    fontSize = 12.sp,
+                    color = Slate500
+                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
