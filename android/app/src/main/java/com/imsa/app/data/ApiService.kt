@@ -43,10 +43,10 @@ interface ImsaApiService {
     suspend fun deleteLoginRecord(@Path("id") id: String): Response<Unit>
 
     companion object {
-        // 10.0.2.2 為 Android 模擬器訪問本機電腦 localhost 的專用 IP
-        private const val BASE_URL = "http://10.0.2.2:8080/"
+        const val DEFAULT_BASE_URL = "http://192.168.0.137:8080/"
 
-        fun create(): ImsaApiService {
+        fun create(baseUrl: String = DEFAULT_BASE_URL): ImsaApiService {
+            val validUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
             val logging = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY
             }
@@ -58,7 +58,7 @@ interface ImsaApiService {
                 .build()
 
             return Retrofit.Builder()
-                .baseUrl(BASE_URL)
+                .baseUrl(validUrl)
                 .client(client)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()

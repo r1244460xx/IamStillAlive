@@ -32,6 +32,10 @@ class SessionManager(context: Context) {
         get() = prefs.getString("next_deadline", null)
         set(value) = prefs.edit().putString("next_deadline", value).apply()
 
+    var serverUrl: String
+        get() = prefs.getString("server_url", "http://192.168.0.137:8080/") ?: "http://192.168.0.137:8080/"
+        set(value) = prefs.edit().putString("server_url", value).apply()
+
     fun isLoggedIn(): Boolean = !userId.isNullOrBlank()
 
     fun saveUser(user: UserResponse) {
@@ -45,6 +49,8 @@ class SessionManager(context: Context) {
     }
 
     fun logout() {
+        val currentServer = serverUrl
         prefs.edit().clear().apply()
+        serverUrl = currentServer
     }
 }

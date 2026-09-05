@@ -28,7 +28,7 @@ class SafetyCheckInWorker(
         Log.i("SafetyCheckInWorker", "🚀 [WorkManager] 正在執行背景心跳打卡 (User: $userId, 類型: $networkType)...")
 
         return try {
-            val api = ImsaApiService.create()
+            val api = ImsaApiService.create(session.serverUrl)
             val request = UserCheckInRequest(
                 deviceInfo = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
                 networkType = networkType,

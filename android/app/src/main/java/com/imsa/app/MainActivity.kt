@@ -68,7 +68,8 @@ class MainActivity : ComponentActivity() {
                                             viewModel.clearError()
                                             currentAuthScreen = AuthScreen.REGISTER
                                         },
-                                        onClearError = { viewModel.clearError() }
+                                        onClearError = { viewModel.clearError() },
+                                        onUpdateServerUrl = { viewModel.updateServerUrl(it) }
                                     )
                                 }
                                 AuthScreen.REGISTER -> {

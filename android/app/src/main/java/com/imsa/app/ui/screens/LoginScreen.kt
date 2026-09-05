@@ -2,6 +2,7 @@ package com.imsa.app.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -11,10 +12,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
@@ -40,12 +43,19 @@ fun LoginScreen(
     state: MainUiState,
     onLogin: (phone: String, pass: String) -> Unit,
     onNavigateToRegister: () -> Unit,
-    onClearError: () -> Unit = {}
+    onClearError: () -> Unit = {},
+    onUpdateServerUrl: (String) -> Unit = {}
 ) {
     var phone by remember { mutableStateOf("0912345678") }
     var password by remember { mutableStateOf("pass123456") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var showServerDialog by remember { mutableStateOf(false) }
+    var inputServerUrl by remember { mutableStateOf(state.serverUrl) }
     val focusManager = LocalFocusManager.current
+
+    LaunchedEffect(state.serverUrl) {
+        inputServerUrl = state.serverUrl
+    }
 
     Column(
         modifier = Modifier
@@ -56,7 +66,44 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 伺服器網址狀態膠囊 (點擊可快速切換/自訂)
+        Surface(
+            color = Slate100,
+            shape = RoundedCornerShape(20.dp),
+            modifier = Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .clickable { showServerDialog = true }
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Dns,
+                    contentDescription = null,
+                    tint = Slate500,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = state.serverUrl,
+                    fontSize = 12.sp,
+                    color = Slate700,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = null,
+                    tint = Slate500,
+                    modifier = Modifier.size(12.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         // 品牌圖示與主標題
         Box(
@@ -283,5 +330,68 @@ fun LoginScreen(
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    // 伺服器網址配置彈窗
+    if (showServerDialog) {
+        AlertDialog(
+            onDismissRequest = { showServerDialog = false },
+            title = { Text("伺服器連線配置", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        text = "請輸入後端 API 伺服器網址（實體手機請填寫電腦區網 IP）：",
+                        fontSize = 13.sp,
+                        color = Slate500
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = inputServerUrl,
+                        onValueChange = { inputServerUrl = it },
+                        singleLine = true,
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(text = "快速選擇：", fontSize = 12.sp, color = Slate700, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        SuggestionChip(
+                            onClick = { inputServerUrl = "http://192.168.0.137:8080/" },
+                            label = { Text("本機區網 (192.168.0.137)") }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        SuggestionChip(
+                            onClick = { inputServerUrl = "http://10.0.2.2:8080/" },
+                            label = { Text("模擬器 (10.0.2.2)") }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onUpdateServerUrl(inputServerUrl.trim())
+                        showServerDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                ) {
+                    Text("儲存套用")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showServerDialog = false }) {
+                    Text("取消", color = Slate500)
+                }
+            }
+        )
     }
 }

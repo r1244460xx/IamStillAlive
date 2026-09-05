@@ -24,15 +24,16 @@ data class MainUiState(
     val message: String? = null,
     val isError: Boolean = false,
     val errorMessage: String? = null,
-    val isPhoneConflict: Boolean = false
+    val isPhoneConflict: Boolean = false,
+    val serverUrl: String = "http://192.168.0.137:8080/"
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val api = ImsaApiService.create()
     private val session = SessionManager(application)
+    private var api = ImsaApiService.create(session.serverUrl)
 
-    private val _uiState = MutableStateFlow(MainUiState())
+    private val _uiState = MutableStateFlow(MainUiState(serverUrl = session.serverUrl))
     val uiState: StateFlow<MainUiState> = _uiState.asStateFlow()
 
     init {
@@ -43,6 +44,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (session.isLoggedIn()) {
             _uiState.value = _uiState.value.copy(
                 isLoggedIn = true,
+                serverUrl = session.serverUrl,
                 userId = session.userId.orEmpty(),
                 nickname = session.nickname.orEmpty(),
                 phone = session.phone.orEmpty(),
@@ -53,7 +55,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             com.imsa.app.worker.SafetyCheckInWorker.cancelPeriodicHeartbeat(getApplication())
             refreshData()
         } else {
-            _uiState.value = _uiState.value.copy(isLoggedIn = false)
+            _uiState.value = _uiState.value.copy(isLoggedIn = false, serverUrl = session.serverUrl)
         }
     }
 
@@ -254,7 +256,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         session.logout()
-        _uiState.value = MainUiState()
+        _uiState.value = MainUiState(serverUrl = session.serverUrl)
+    }
+
+    fun updateServerUrl(newUrl: String) {
+        val formatted = if (newUrl.startsWith("http://") || newUrl.startsWith("https://")) {
+            if (newUrl.endsWith("/")) newUrl else "$newUrl/"
+        } else {
+            "http://$newUrl/"
+        }
+        session.serverUrl = formatted
+        api = ImsaApiService.create(formatted)
+        _uiState.value = _uiState.value.copy(
+            serverUrl = formatted,
+            message = "伺服器網址已更新為: $formatted"
+        )
     }
 
     fun clearMessage() {
