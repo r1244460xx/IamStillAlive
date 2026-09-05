@@ -31,6 +31,12 @@ public class UserService {
             throw new IllegalArgumentException("該電話號碼已註冊");
         }
 
+        if (request.getEmergencyContactPhone() != null && !request.getEmergencyContactPhone().isBlank()) {
+            if (request.getEmergencyContactPhone().trim().equals(request.getPhone().trim())) {
+                throw new IllegalArgumentException("緊急聯絡人不可設定為本人之手機號碼");
+            }
+        }
+
         if (request.getNationalId() != null && !request.getNationalId().isBlank()) {
             if (userRepository.existsByNationalId(request.getNationalId())) {
                 throw new IllegalArgumentException("該身分證字號已被使用");
@@ -171,6 +177,12 @@ public class UserService {
             throw new IllegalArgumentException("找不到該使用者");
         }
 
+        if (emergencyContactPhone != null && !emergencyContactPhone.isBlank()) {
+            if (emergencyContactPhone.trim().equals(user.getPhone().trim())) {
+                throw new IllegalArgumentException("緊急聯絡人不可設定為本人之手機號碼");
+            }
+        }
+
         user.setEmergencyContactPhone(emergencyContactPhone);
         User updated = userRepository.save(user);
         log.info("📞 使用者 [{}] 成功變更緊急聯絡人電話為 [{}]", user.getPhone(), emergencyContactPhone);
@@ -196,9 +208,17 @@ public class UserService {
             throw new IllegalArgumentException("找不到該使用者");
         }
 
+        LocalDateTime now = LocalDateTime.now();
         LocalDateTime eventTime = (request != null && request.getCheckInTime() != null) 
                 ? request.getCheckInTime() 
-                : LocalDateTime.now();
+                : now;
+
+        // ⏰ Edge Case 3: 驗證客戶端時間是否異常超出未來時間 (容許 5 分鐘內的合理網路傳輸與鐘差)
+        if (eventTime.isAfter(now.plusMinutes(5))) {
+            log.warn("⚠️ [時鐘校正] 偵測到使用者 [{}] 之客戶端打卡時間處於未來時間 [{}]，已自動校正為伺服器時間 [{}]", 
+                    user.getPhone(), eventTime, now);
+            eventTime = now;
+        }
 
         if (user.getLastActiveAt() == null || eventTime.isAfter(user.getLastActiveAt())) {
             user.setLastActiveAt(eventTime);

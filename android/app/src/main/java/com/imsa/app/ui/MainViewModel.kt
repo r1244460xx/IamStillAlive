@@ -61,8 +61,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isDisconnected = disconnected,
                     pendingCheckIn = session.getPendingCheckIn()
                 )
-                // 若由斷線轉為連線，自動刷新資料
-                if (wasDisconnected && !disconnected && session.isLoggedIn()) {
+                // 若由斷線轉為連線，自動刷新資料 (僅限於登入狀態)
+                if (wasDisconnected && !disconnected && session.isLoggedIn() && _uiState.value.isLoggedIn) {
                     refreshData()
                 }
             }
@@ -199,6 +199,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
 
     fun refreshData() {
+        if (!session.isLoggedIn() || !_uiState.value.isLoggedIn) return
+
         val pending = session.getPendingCheckIn()
         _uiState.value = _uiState.value.copy(pendingCheckIn = pending)
 
@@ -223,11 +225,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     )
                     com.imsa.app.util.HeartbeatSyncManager.setDisconnected(false, getApplication())
                 } else {
-                    com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
+                    if (session.isLoggedIn()) {
+                        com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
+                    }
                 }
                 fetchHistory()
             } catch (e: Exception) {
-                com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
+                if (session.isLoggedIn()) {
+                    com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
+                }
             }
         }
     }
@@ -341,7 +347,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun logout() {
         session.logout()
-        _uiState.value = MainUiState(serverUrl = session.serverUrl)
+        com.imsa.app.util.HeartbeatSyncManager.resetOnLogout(getApplication())
+        _uiState.value = MainUiState(serverUrl = session.serverUrl, isLoggedIn = false)
     }
 
     fun updateServerUrl(newUrl: String) {

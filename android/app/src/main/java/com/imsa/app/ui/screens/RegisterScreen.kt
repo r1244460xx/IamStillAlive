@@ -166,12 +166,24 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        val isEmergencySameAsPhone = phone.isNotBlank() && emergencyContact.isNotBlank() && emergencyContact.trim() == phone.trim()
+        val phoneRegex = Regex("^09\\d{8}$")
+        val isEmergencyValidFormat = emergencyContact.isBlank() || phoneRegex.matches(emergencyContact.trim())
+
         OutlinedTextField(
             value = emergencyContact,
             onValueChange = { emergencyContact = it },
             label = { Text("緊急聯絡人電話 (選填)") },
             placeholder = { Text("例如 0987654321") },
             leadingIcon = { Icon(Icons.Default.Phone, null) },
+            isError = isEmergencySameAsPhone || (!isEmergencyValidFormat && emergencyContact.isNotBlank()),
+            supportingText = {
+                if (isEmergencySameAsPhone) {
+                    Text("⚠️ 緊急聯絡人不可為本人手機號碼", color = AlertRed, fontSize = 12.sp)
+                } else if (emergencyContact.isNotBlank() && !isEmergencyValidFormat) {
+                    Text("⚠️ 請輸入 09 開頭之 10 碼台灣手機號碼", color = AlertRed, fontSize = 12.sp)
+                }
+            },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp)
@@ -186,7 +198,7 @@ fun RegisterScreen(
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
-            enabled = !state.isLoading
+            enabled = !state.isLoading && !isEmergencySameAsPhone && isEmergencyValidFormat
         ) {
             if (state.isLoading) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))

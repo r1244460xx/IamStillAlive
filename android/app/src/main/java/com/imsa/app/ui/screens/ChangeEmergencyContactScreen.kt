@@ -43,7 +43,8 @@ fun ChangeEmergencyContactScreen(
 
     val phoneRegex = Regex("^09\\d{8}$")
     val isValidFormat = phoneRegex.matches(emergencyPhone.trim())
-    val isFormValid = isValidFormat && emergencyPhone.trim() != (state.emergencyContact ?: "")
+    val isSameAsSelf = state.phone.isNotBlank() && emergencyPhone.trim() == state.phone.trim()
+    val isFormValid = isValidFormat && !isSameAsSelf && emergencyPhone.trim() != (state.emergencyContact ?: "")
 
     Scaffold(
         topBar = {
@@ -206,9 +207,11 @@ fun ChangeEmergencyContactScreen(
                             }
                         ),
                         singleLine = true,
-                        isError = emergencyPhone.isNotEmpty() && !isValidFormat,
+                        isError = (emergencyPhone.isNotEmpty() && !isValidFormat) || isSameAsSelf,
                         supportingText = {
-                            if (emergencyPhone.isNotEmpty() && !isValidFormat) {
+                            if (isSameAsSelf) {
+                                Text("⚠️ 緊急聯絡人不可為本人之手機號碼", color = AlertRed, fontSize = 12.sp)
+                            } else if (emergencyPhone.isNotEmpty() && !isValidFormat) {
                                 Text("⚠️ 請輸入 09 開頭之 10 碼台灣手機號碼", color = AlertRed, fontSize = 12.sp)
                             } else if (isValidFormat) {
                                 Text("✅ 門號格式正確", color = PrimaryGreenDark, fontSize = 12.sp)

@@ -164,4 +164,16 @@ object HeartbeatSyncManager {
             }
         }
     }
+
+    /**
+     * 使用者登出時徹底重置連線狀態、停止重試迴圈並清空離線暫存
+     */
+    fun resetOnLogout(context: Context) {
+        stopRetryLoop()
+        _isDisconnected.value = false
+        val session = SessionManager(context)
+        session.isDisconnected = false
+        session.clearPendingCheckIn()
+        Log.i(TAG, "🚪 [登出重置] 已終止背景重試迴圈並重置連線狀態與打卡暫存")
+    }
 }
