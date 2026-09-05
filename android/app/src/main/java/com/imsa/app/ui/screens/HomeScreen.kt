@@ -28,9 +28,9 @@ import com.imsa.app.ui.theme.*
 @Composable
 fun HomeScreen(
     state: MainUiState,
-    onCheckIn: () -> Unit,
+    onCheckIn: () -> Unit = {},
     onRefresh: () -> Unit,
-    onTriggerWorkManager: () -> Unit,
+    onTriggerWorkManager: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     Scaffold(
@@ -68,7 +68,7 @@ fun HomeScreen(
         ) {
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 1. 安全狀態警示卡片 (Status Banner)
+            // 1. 安全狀態與解鎖守護核心面板
             val isAlerted = state.safetyStatus == "ALERTED"
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -77,37 +77,51 @@ fun HomeScreen(
                     containerColor = if (isAlerted) AlertRedBg else SafeGreenBg
                 )
             ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = if (isAlerted) Icons.Default.Warning else Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = if (isAlerted) AlertRed else PrimaryGreenDark,
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = if (isAlerted) "⚠️ 安全警報已觸發" else "目前狀態：平安守護中",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp,
-                            color = if (isAlerted) AlertRed else PrimaryGreenDark
-                        )
-                        Text(
-                            text = if (isAlerted)
-                                "您已超過 24 小時未打卡！緊急聯絡人已收到通知，請立即報平安以解除警報。"
-                            else
-                                "系統持續監測活躍度，點擊下方按鈕即可隨時刷新健在證明。",
-                            fontSize = 13.sp,
-                            color = Slate700
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(68.dp)
+                            .clip(CircleShape)
+                            .background(if (isAlerted) AlertRed else PrimaryGreen)
+                    ) {
+                        Icon(
+                            imageVector = if (isAlerted) Icons.Default.Warning else Icons.Default.Shield,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(36.dp)
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = if (isAlerted) "⚠️ 安全警報已觸發" else "平安守護中",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = if (isAlerted) AlertRed else PrimaryGreenDark
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = if (isAlerted)
+                            "已超過 24 小時未偵測到手機解鎖！緊急聯絡人已收到通報。"
+                        else
+                            "免手動操作・每次解鎖螢幕自動向守護中心報平安",
+                        fontSize = 13.sp,
+                        color = Slate700,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 2. 下次檢測截止時間卡片
             if (!state.nextDeadline.isNullOrBlank()) {
@@ -136,53 +150,12 @@ fun HomeScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             } else {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // 3. 核心一鍵打卡大按鈕
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(180.dp)
-                    .shadow(12.dp, CircleShape)
-                    .clip(CircleShape)
-                    .background(if (isAlerted) AlertRed else PrimaryGreen)
-            ) {
-                Button(
-                    onClick = onCheckIn,
-                    modifier = Modifier.fillMaxSize(),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isAlerted) AlertRed else PrimaryGreen
-                    ),
-                    enabled = !state.isLoading
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        if (state.isLoading) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(32.dp))
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.TouchApp,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text("一鍵報平安", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text("點擊即刻打卡", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // 4. 緊急聯絡人資訊
+            // 3. 緊急聯絡人資訊
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(vertical = 2.dp)
@@ -198,7 +171,7 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 4.1 無感守護狀態卡片 (Accessibility & Battery Optimization)
+            // 4. 無感守護狀態卡片 (Accessibility & Battery Optimization)
             val context = androidx.compose.ui.platform.LocalContext.current
             var isAccEnabled by androidx.compose.runtime.remember {
                 androidx.compose.runtime.mutableStateOf(com.imsa.app.util.GuardianPermissionHelper.isAccessibilityServiceEnabled(context))
@@ -277,23 +250,7 @@ fun HomeScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // WorkManager 背景定時心跳按鈕
-            OutlinedButton(
-                onClick = onTriggerWorkManager,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Slate700)
-            ) {
-                Icon(Icons.Default.Bolt, null, modifier = Modifier.size(16.dp), tint = AccentBlue)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("測試 WorkManager 背景心跳 (每12小時自動)", fontSize = 12.sp)
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 5. 最近打卡歷史紀錄
             Text(
@@ -313,7 +270,7 @@ fun HomeScreen(
                         .weight(1f),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("暫無歷史紀錄，點擊上方按鈕進行第一次打卡！", fontSize = 13.sp, color = Slate500)
+                    Text("暫無打卡紀錄，日常解鎖手機將自動為您完成打卡！", fontSize = 13.sp, color = Slate500)
                 }
             } else {
                 LazyColumn(
