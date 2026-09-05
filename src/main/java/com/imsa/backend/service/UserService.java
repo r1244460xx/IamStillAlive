@@ -67,6 +67,33 @@ public class UserService {
         return UserResponse.fromEntity(savedUser);
     }
 
+    @Transactional
+    public UserResponse login(UserLoginRequest request) {
+        User user = userRepository.findByPhone(request.getPhone())
+                .orElseThrow(() -> new IllegalArgumentException("手機號碼或密碼錯誤"));
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new IllegalArgumentException("手機號碼或密碼錯誤");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        user.setLastActiveAt(now);
+        if (user.getSafetyStatus() == SafetyStatus.ALERTED) {
+            user.setSafetyStatus(SafetyStatus.SAFE);
+        }
+        User savedUser = userRepository.save(user);
+
+        LoginRecord record = LoginRecord.builder()
+                .user(savedUser)
+                .loginTime(now)
+                .remark("使用者手動登入")
+                .build();
+        loginRecordRepository.save(record);
+
+        log.info("🔑 使用者登入成功：{} (ID: {})", savedUser.getNickname(), savedUser.getId());
+        return UserResponse.fromEntity(savedUser);
+    }
+
     @Transactional(readOnly = true)
     public UserResponse getUserById(UUID id) {
         User user = userRepository.findById(id)
