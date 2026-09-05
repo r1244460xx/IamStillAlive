@@ -21,6 +21,12 @@ class SafetyGuardianAccessibilityService : AccessibilityService() {
         private const val THROTTLE_MS = 15_000L // 15 秒防抖節流
     }
 
+    override fun onCreate() {
+        super.onCreate()
+        Log.i(TAG, "🛡️ IMSA 無障礙守護服務已創建 (onCreate)")
+        registerUnlockReceiver()
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         Log.i(TAG, "🛡️ IMSA 無障礙守護服務已連接啟動！(系統直接綁定，抗滑掉、零通知欄干擾)")
@@ -74,9 +80,9 @@ class SafetyGuardianAccessibilityService : AccessibilityService() {
             this,
             unlockReceiver,
             filter,
-            ContextCompat.RECEIVER_NOT_EXPORTED
+            ContextCompat.RECEIVER_EXPORTED
         )
-        Log.i(TAG, "✅ 已成功動態註冊螢幕解鎖廣播監聽 (ACTION_USER_PRESENT)")
+        Log.i(TAG, "✅ 已成功動態註冊螢幕解鎖廣播監聽 (ACTION_USER_PRESENT, ACTION_SCREEN_ON)")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
