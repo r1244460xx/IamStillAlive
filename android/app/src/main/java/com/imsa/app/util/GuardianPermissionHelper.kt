@@ -61,8 +61,22 @@ object GuardianPermissionHelper {
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            // 降級跳轉至通用電池最佳化設定
+            openBatteryOptimizationSettings(context)
+        }
+    }
+
+    /**
+     * 開啟系統電池最佳化/用電管理設定頁（供使用者查看或關閉豁免）
+     */
+    fun openBatteryOptimizationSettings(context: Context) {
+        try {
             val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.parse("package:${context.packageName}")
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
             context.startActivity(intent)

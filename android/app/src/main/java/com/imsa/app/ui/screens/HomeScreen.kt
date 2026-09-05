@@ -244,17 +244,26 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("解鎖心跳守護 (無通知常駐)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Slate900)
                         }
-                        if (isAccEnabled) {
-                            Text("已常駐運行", fontSize = 11.sp, color = PrimaryGreenDark, fontWeight = FontWeight.Bold)
-                        } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (isAccEnabled) "已常駐" else "未開啟",
+                                fontSize = 11.sp,
+                                color = if (isAccEnabled) PrimaryGreenDark else AlertRed,
+                                fontWeight = if (isAccEnabled) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
                             TextButton(
                                 onClick = {
                                     com.imsa.app.util.GuardianPermissionHelper.openAccessibilitySettings(context)
                                 },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 modifier = Modifier.height(28.dp)
                             ) {
-                                Text("前往開啟 ➔", fontSize = 11.sp, color = AccentBlue)
+                                Text(
+                                    text = if (isAccEnabled) "前往設定 ➔" else "前往開啟 ➔",
+                                    fontSize = 11.sp,
+                                    color = AccentBlue
+                                )
                             }
                         }
                     }
@@ -276,17 +285,30 @@ fun HomeScreen(
                             Spacer(modifier = Modifier.width(6.dp))
                             Text("電池最佳化豁免 (抗殺進程)", fontSize = 12.sp, color = Slate700)
                         }
-                        if (isBatteryExempt) {
-                            Text("已豁免", fontSize = 11.sp, color = PrimaryGreenDark)
-                        } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (isBatteryExempt) "已豁免" else "未豁免",
+                                fontSize = 11.sp,
+                                color = if (isBatteryExempt) PrimaryGreenDark else Slate500,
+                                fontWeight = if (isBatteryExempt) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
                             TextButton(
                                 onClick = {
-                                    com.imsa.app.util.GuardianPermissionHelper.requestIgnoreBatteryOptimizations(context)
+                                    if (isBatteryExempt) {
+                                        com.imsa.app.util.GuardianPermissionHelper.openBatteryOptimizationSettings(context)
+                                    } else {
+                                        com.imsa.app.util.GuardianPermissionHelper.requestIgnoreBatteryOptimizations(context)
+                                    }
                                 },
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
                                 modifier = Modifier.height(28.dp)
                             ) {
-                                Text("設定豁免 ➔", fontSize = 11.sp, color = AccentBlue)
+                                Text(
+                                    text = if (isBatteryExempt) "前往設定 ➔" else "設定豁免 ➔",
+                                    fontSize = 11.sp,
+                                    color = AccentBlue
+                                )
                             }
                         }
                     }
