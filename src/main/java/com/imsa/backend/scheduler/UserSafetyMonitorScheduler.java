@@ -16,12 +16,12 @@ public class UserSafetyMonitorScheduler {
     /**
      * 定時執行使用者健在與安全狀態檢查
      * 
-     * 開發與測試期設定：每分鐘執行一次 (fixedRate = 60000，即 60 秒)
+     * 開發與測試期設定：每分鐘執行一次 (fixedDelay = 60000，前一次完全結束後靜置 60 秒；initialDelay = 10000，開機 10 秒後初次執行)
      * 正式上線建議：
      * - 改用 cron 表示式，例如每天中午 12:00 執行一次：@Scheduled(cron = "0 0 12 * * ?")
      * - 或者是每小時執行一次：@Scheduled(cron = "0 0 * * * ?")
      */
-    @Scheduled(fixedRate = 60000)
+    @Scheduled(fixedDelay = 60000, initialDelay = 10000)
     public void runSafetyCheck() {
         log.info("排程器啟動：定時檢查安全狀態...");
         try {

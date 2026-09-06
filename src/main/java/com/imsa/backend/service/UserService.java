@@ -43,11 +43,7 @@ public class UserService {
         }
 
         if (request.getNationalId() != null && !request.getNationalId().isBlank()) {
-            String cleanNationalId = request.getNationalId().trim();
-            request.setNationalId(cleanNationalId);
-            if (userRepository.existsByNationalId(cleanNationalId)) {
-                throw new IllegalArgumentException("該身分證字號已被使用");
-            }
+            request.setNationalId(request.getNationalId().trim());
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -144,17 +140,13 @@ public class UserService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("找不到該使用者"));
 
-        // 如果修改了身分證字號，且已被其他帳號使用，則不允許
-        if (request.getNationalId() != null && !request.getNationalId().isBlank() 
-                && !request.getNationalId().equals(user.getNationalId())) {
-            if (userRepository.existsByNationalId(request.getNationalId())) {
-                throw new IllegalArgumentException("該身分證字號已被其他使用者綁定");
-            }
-        }
+        String cleanNationalId = (request.getNationalId() != null && !request.getNationalId().isBlank())
+                ? request.getNationalId().trim()
+                : request.getNationalId();
 
         user.setNickname(request.getNickname());
         user.setEmail(request.getEmail());
-        user.setNationalId(request.getNationalId());
+        user.setNationalId(cleanNationalId);
         user.setEmergencyContactPhone(request.getEmergencyContactPhone());
         user.setGender(request.getGender());
         user.setBirthdate(request.getBirthdate());
