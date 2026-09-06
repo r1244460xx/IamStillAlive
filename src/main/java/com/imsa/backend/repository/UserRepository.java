@@ -27,6 +27,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             LocalDateTime threshold
     );
 
+    @org.springframework.transaction.annotation.Transactional
     @Modifying
     @Query("UPDATE User u SET u.safetyStatus = com.imsa.backend.entity.enums.SafetyStatus.ALERTED " +
            "WHERE u.id = :id AND u.safetyStatus = com.imsa.backend.entity.enums.SafetyStatus.SAFE " +
