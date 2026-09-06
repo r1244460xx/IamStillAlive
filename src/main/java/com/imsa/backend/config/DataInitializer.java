@@ -13,8 +13,12 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
+import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
@@ -33,9 +37,11 @@ public class DataInitializer implements CommandLineRunner {
     public static final String TEST_USER_EMERGENCY = "0987654321";
 
     @Override
+    @Transactional
     public void run(String... args) {
-        java.util.Optional<User> existingUserOpt = userRepository.findById(TEST_USER_ID);
+        Optional<User> existingUserOpt = userRepository.findById(TEST_USER_ID);
         LocalDateTime now = LocalDateTime.now();
+        User targetUser;
 
         if (existingUserOpt.isEmpty()) {
             // 若被其他帳號佔用此手機號，先清理以確保唯一約束
@@ -57,49 +63,64 @@ public class DataInitializer implements CommandLineRunner {
                     .lastActiveAt(now)
                     .build();
 
-            User saved = userRepository.save(demoUser);
-
-            LoginRecord initialRecord = LoginRecord.builder()
-                    .user(saved)
-                    .loginTime(now)
-                    .deviceInfo("系統初始化")
-                    .networkType("SystemInit")
-                    .remark("系統初始化預設測試帳號")
-                    .build();
-            loginRecordRepository.save(initialRecord);
-
+            targetUser = userRepository.save(demoUser);
             log.info("🌱 [DataInitializer] 測試帳號不存在，已自動建立：ID {}, 手機 {}, 暱稱 {}", 
-                    saved.getId(), saved.getPhone(), saved.getNickname());
+                    targetUser.getId(), targetUser.getPhone(), targetUser.getNickname());
         } else {
             // 帳號存在：比對並校準帳號、密碼雜湊與啟用狀態，確保符合共識
-            User user = existingUserOpt.get();
+            targetUser = existingUserOpt.get();
             boolean modified = false;
 
-            if (!TEST_USER_PHONE.equals(user.getPhone())) {
-                user.setPhone(TEST_USER_PHONE);
+            if (!TEST_USER_PHONE.equals(targetUser.getPhone())) {
+                targetUser.setPhone(TEST_USER_PHONE);
                 modified = true;
             }
 
             // 檢查密碼是否依然符合預設密碼
-            if (!passwordEncoder.matches(TEST_USER_PASSWORD, user.getPasswordHash())) {
-                user.setPasswordHash(passwordEncoder.encode(TEST_USER_PASSWORD));
+            if (!passwordEncoder.matches(TEST_USER_PASSWORD, targetUser.getPasswordHash())) {
+                targetUser.setPasswordHash(passwordEncoder.encode(TEST_USER_PASSWORD));
                 modified = true;
                 log.info("🔑 [DataInitializer] 測試帳號密碼與預設不符，已校準重設為預設密碼");
             }
 
             // 確保帳號處於啟用狀態，避免測試受阻
-            if (user.getStatus() != UserStatus.ACTIVE) {
-                user.setStatus(UserStatus.ACTIVE);
+            if (targetUser.getStatus() != UserStatus.ACTIVE) {
+                targetUser.setStatus(UserStatus.ACTIVE);
                 modified = true;
             }
 
             if (modified) {
-                userRepository.save(user);
-                log.info("🔄 [DataInitializer] 測試帳號資料已完成校準同步 (手機: {}, 狀態: ACTIVE)", user.getPhone());
+                targetUser = userRepository.save(targetUser);
+                log.info("🔄 [DataInitializer] 測試帳號資料已完成校準同步 (手機: {}, 狀態: ACTIVE)", targetUser.getPhone());
             } else {
                 log.info("✅ [DataInitializer] 測試帳號已存在且帳密完全符合共識 (ID: {}, 手機: {})", 
-                        user.getId(), user.getPhone());
+                        targetUser.getId(), targetUser.getPhone());
             }
         }
+
+        // ==========================================
+        // 重整打卡紀錄：先刪除所有舊紀錄，並寫入當下唯一的「系統初始化」第一筆紀錄
+        // ==========================================
+        List<LoginRecord> oldRecords = loginRecordRepository.findByUserId(TEST_USER_ID);
+        if (!oldRecords.isEmpty()) {
+            loginRecordRepository.deleteAll(oldRecords);
+            log.info("🧹 [DataInitializer] 已清理測試帳號歷史打卡紀錄共 {} 筆", oldRecords.size());
+        }
+
+        LoginRecord initialRecord = LoginRecord.builder()
+                .user(targetUser)
+                .loginTime(now)
+                .deviceInfo("系統初始化")
+                .networkType("SystemInit")
+                .remark("系統初始化預設測試帳號")
+                .build();
+        loginRecordRepository.save(initialRecord);
+
+        // 同步校準 User 的 lastActiveAt 與 safetyStatus 為初始 SAFE
+        targetUser.setLastActiveAt(now);
+        targetUser.setSafetyStatus(SafetyStatus.SAFE);
+        userRepository.save(targetUser);
+
+        log.info("🌱 [DataInitializer] 測試帳號打卡紀錄已重整為當下唯一的「系統初始化」紀錄 (時間: {})", now);
     }
 }
