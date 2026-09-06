@@ -45,30 +45,24 @@ public class UserSafetyService {
         }
 
         for (User user : overdueSafeUsers) {
-            // Case 6: 雙重檢查 (Double-Check)，避免在排程處理期間使用者剛好完成打卡
-            User latestUser = userRepository.findById(user.getId()).orElse(null);
-            if (latestUser == null) {
+            // Case 6: 資料庫層級條件式原子更新（Conditional Atomic UPDATE）
+            // 在行級鎖保護下原子判定：若在排程處理期間使用者剛好完成打卡，更新 0 筆，直接放棄警報！
+            int updatedRows = userRepository.markAlertedIfStillOverdue(user.getId(), threshold);
+
+            if (updatedRows == 0) {
+                log.info("⏩ [原子防護] 使用者 {} (ID: {}) 於排程處理期間已完成打卡，略過警報觸發！", 
+                        user.getNickname(), user.getId());
                 continue;
             }
 
-            LocalDateTime latestActive = latestUser.getLastActiveAt() != null ? latestUser.getLastActiveAt() : latestUser.getCreatedAt();
-            // 若最新狀態已非 SAFE，或者最後活躍時間已經更新在 24 小時之內，代表使用者已在此期間打卡，立即跳過！
-            if (latestUser.getSafetyStatus() != SafetyStatus.SAFE || !latestActive.isBefore(threshold)) {
-                log.info("⏩ [併發保護] 使用者 {} (ID: {}) 於排程處理期間已完成打卡 (最後活躍時間: {})，已自動略過警報觸發！", 
-                        latestUser.getNickname(), latestUser.getId(), latestActive);
-                continue;
-            }
-
-            long hoursSinceLastActive = Duration.between(latestActive, now).toHours();
+            LocalDateTime lastActive = user.getLastActiveAt() != null ? user.getLastActiveAt() : user.getCreatedAt();
+            long hoursSinceLastActive = Duration.between(lastActive, now).toHours();
 
             log.warn("🚨 警報發送判定：使用者 {} (ID: {}) 已 {} 小時未登入打卡！最後活躍時間：{}", 
-                    latestUser.getNickname(), latestUser.getId(), hoursSinceLastActive, latestActive);
+                    user.getNickname(), user.getId(), hoursSinceLastActive, lastActive);
             
-            triggerSafetyAlert(latestUser, latestActive);
-
-            // 更新狀態為 ALERTED 並存檔，避免下一次排程掃描時重複報警
-            latestUser.setSafetyStatus(SafetyStatus.ALERTED);
-            userRepository.save(latestUser);
+            triggerSafetyAlert(user, lastActive);
+            // 狀態已由 markAlertedIfStillOverdue 在 DB 原子更新為 ALERTED，不需再調用 userRepository.save() 避免舊資料覆蓋
         }
         
         log.info("單身人士安全活躍度檢測執行完畢。");

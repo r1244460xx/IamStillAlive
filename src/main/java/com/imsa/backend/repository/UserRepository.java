@@ -4,6 +4,9 @@ import com.imsa.backend.entity.User;
 import com.imsa.backend.entity.enums.SafetyStatus;
 import com.imsa.backend.entity.enums.UserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -17,9 +20,16 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     boolean existsByPhone(String phone);
     boolean existsByNationalId(String nationalId);
     List<User> findByStatus(UserStatus status);
+
     List<User> findByStatusAndSafetyStatusAndLastActiveAtBefore(
             UserStatus status, 
             SafetyStatus safetyStatus, 
             LocalDateTime threshold
     );
+
+    @Modifying
+    @Query("UPDATE User u SET u.safetyStatus = com.imsa.backend.entity.enums.SafetyStatus.ALERTED " +
+           "WHERE u.id = :id AND u.safetyStatus = com.imsa.backend.entity.enums.SafetyStatus.SAFE " +
+           "AND (u.lastActiveAt < :threshold OR (u.lastActiveAt IS NULL AND u.createdAt < :threshold))")
+    int markAlertedIfStillOverdue(@Param("id") UUID id, @Param("threshold") LocalDateTime threshold);
 }
