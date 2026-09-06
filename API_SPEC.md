@@ -275,3 +275,32 @@ Android 端使用加密/私有 `SharedPreferences` 保存用戶狀態：
 * `safety_status`：當前安全狀態 (`SAFE` / `ALERTED`)。
 * `next_deadline`：下次打卡截止時間戳（ISO-8601 格式）。
 
+---
+
+## 5. 雲端伺服器與部署規格 (Cloud Server & Deployment)
+
+### 5.1 Oracle Cloud VPS 主機資訊
+* **公用 IP (Public IP)**：`64.181.242.49`
+* **SSH 登入帳號**：`ubuntu`
+* **SSH 私密金鑰本機存放路徑 (重要 ⚠️)**：
+  ```text
+  C:\Users\r1244\.ssh\oracle-vps.key
+  ```
+* **一鍵 SSH 連線指令**：
+  ```powershell
+  ssh -i "C:\Users\r1244\.ssh\oracle-vps.key" ubuntu@64.181.242.49
+  ```
+
+### 5.2 伺服器硬體與網路環境
+* **主機規格**：Oracle Cloud `VM.Standard.E2.1.Micro` (Always Free AMD)
+* **記憶體配置**：1 GB 實體 RAM + 4 GB Swapfile 虛擬記憶體（共 5 GB 可用記憶體）
+* **硬碟空間**：75 GB (10 VPU)
+* **作業系統**：Ubuntu 24.04 LTS (Noble)
+* **容器引擎**：Docker Engine 29.8.0 + Docker Compose v5.5.1
+* **已放行之防火牆連接埠 (Ingress Ports)**：
+  * `22`：SSH 遠端連線
+  * `80` / `443`：Web HTTP / HTTPS
+  * `8080`：IMSA 後端 API 服務 (`http://64.181.242.49:8080`)
+  * `8000`：管理平台面板 (備用)
+
+
