@@ -27,18 +27,25 @@ public class UserService {
 
     @Transactional
     public UserResponse registerUser(UserRegisterRequest request) {
-        if (userRepository.existsByPhone(request.getPhone())) {
+        String cleanPhone = request.getPhone() != null ? request.getPhone().trim() : "";
+        request.setPhone(cleanPhone);
+
+        if (userRepository.existsByPhone(cleanPhone)) {
             throw new IllegalArgumentException("該電話號碼已註冊");
         }
 
         if (request.getEmergencyContactPhone() != null && !request.getEmergencyContactPhone().isBlank()) {
-            if (request.getEmergencyContactPhone().trim().equals(request.getPhone().trim())) {
+            String cleanEmergency = request.getEmergencyContactPhone().trim();
+            request.setEmergencyContactPhone(cleanEmergency);
+            if (cleanEmergency.equals(cleanPhone)) {
                 throw new IllegalArgumentException("緊急聯絡人不可設定為本人之手機號碼");
             }
         }
 
         if (request.getNationalId() != null && !request.getNationalId().isBlank()) {
-            if (userRepository.existsByNationalId(request.getNationalId())) {
+            String cleanNationalId = request.getNationalId().trim();
+            request.setNationalId(cleanNationalId);
+            if (userRepository.existsByNationalId(cleanNationalId)) {
                 throw new IllegalArgumentException("該身分證字號已被使用");
             }
         }
@@ -46,7 +53,7 @@ public class UserService {
         LocalDateTime now = LocalDateTime.now();
 
         User user = User.builder()
-                .phone(request.getPhone())
+                .phone(cleanPhone)
                 .email(request.getEmail())
                 .nationalId(request.getNationalId())
                 .emergencyContactPhone(request.getEmergencyContactPhone())
@@ -75,8 +82,16 @@ public class UserService {
 
     @Transactional
     public UserResponse login(UserLoginRequest request) {
-        User user = userRepository.findByPhone(request.getPhone())
+        String cleanPhone = request.getPhone() != null ? request.getPhone().trim() : "";
+
+        User user = userRepository.findByPhone(cleanPhone)
                 .orElseThrow(() -> new IllegalArgumentException("手機號碼或密碼錯誤"));
+
+        // Case 9: 停權帳號檢查
+        if (user.getStatus() == UserStatus.SUSPENDED) {
+            log.warn("🚫 停權使用者嘗試登入遭拒: {} (ID: {})", user.getPhone(), user.getId());
+            throw new IllegalArgumentException("該帳號已被停權，無法使用此服務");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new IllegalArgumentException("手機號碼或密碼錯誤");
@@ -112,9 +127,10 @@ public class UserService {
             user = userRepository.findById(id).orElse(null);
         }
         if (user == null && phone != null && !phone.isBlank()) {
-            user = userRepository.findByPhone(phone).orElse(null);
+            String cleanPhone = phone.trim();
+            user = userRepository.findByPhone(cleanPhone).orElse(null);
             if (user != null) {
-                log.info("🔄 getUserById: 透過手機門號 [{}] 自動找回對應使用者 (ID: {})", phone, user.getId());
+                log.info("🔄 getUserById: 透過手機門號 [{}] 自動找回對應使用者 (ID: {})", cleanPhone, user.getId());
             }
         }
         if (user == null) {
@@ -168,9 +184,10 @@ public class UserService {
             user = userRepository.findById(userId).orElse(null);
         }
         if (user == null && phone != null && !phone.isBlank()) {
-            user = userRepository.findByPhone(phone).orElse(null);
+            String cleanPhone = phone.trim();
+            user = userRepository.findByPhone(cleanPhone).orElse(null);
             if (user != null) {
-                log.info("🔄 updateEmergencyContact: 透過手機門號 [{}] 自動找回對應使用者 (ID: {})", phone, user.getId());
+                log.info("🔄 updateEmergencyContact: 透過手機門號 [{}] 自動找回對應使用者 (ID: {})", cleanPhone, user.getId());
             }
         }
         if (user == null) {
@@ -178,9 +195,11 @@ public class UserService {
         }
 
         if (emergencyContactPhone != null && !emergencyContactPhone.isBlank()) {
-            if (emergencyContactPhone.trim().equals(user.getPhone().trim())) {
+            String cleanEmergency = emergencyContactPhone.trim();
+            if (cleanEmergency.equals(user.getPhone().trim())) {
                 throw new IllegalArgumentException("緊急聯絡人不可設定為本人之手機號碼");
             }
+            emergencyContactPhone = cleanEmergency;
         }
 
         user.setEmergencyContactPhone(emergencyContactPhone);
@@ -199,13 +218,20 @@ public class UserService {
             user = userRepository.findById(userId).orElse(null);
         }
         if (user == null && request != null && request.getPhone() != null && !request.getPhone().isBlank()) {
-            user = userRepository.findByPhone(request.getPhone()).orElse(null);
+            String cleanPhone = request.getPhone().trim();
+            user = userRepository.findByPhone(cleanPhone).orElse(null);
             if (user != null) {
-                log.info("🔄 CheckIn: 透過手機門號 [{}] 自動找回對應使用者 (ID: {})", request.getPhone(), user.getId());
+                log.info("🔄 CheckIn: 透過手機門號 [{}] 自動找回對應使用者 (ID: {})", cleanPhone, user.getId());
             }
         }
         if (user == null) {
             throw new IllegalArgumentException("找不到該使用者");
+        }
+
+        // Case 9: 停權帳號檢查
+        if (user.getStatus() == UserStatus.SUSPENDED) {
+            log.warn("🚫 停權使用者嘗試打卡遭拒: {} (ID: {})", user.getPhone(), user.getId());
+            throw new IllegalArgumentException("該帳號已被停權，無法進行打卡回報");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -213,7 +239,7 @@ public class UserService {
                 ? request.getCheckInTime() 
                 : now;
 
-        // ⏰ Edge Case 3: 驗證客戶端時間是否異常超出未來時間 (容許 5 分鐘內的合理網路傳輸與鐘差)
+        // ⏰ 驗證客戶端時間是否異常超出未來時間 (容許 5 分鐘內的合理網路傳輸與鐘差)
         if (eventTime.isAfter(now.plusMinutes(5))) {
             log.warn("⚠️ [時鐘校正] 偵測到使用者 [{}] 之客戶端打卡時間處於未來時間 [{}]，已自動校正為伺服器時間 [{}]", 
                     user.getPhone(), eventTime, now);
@@ -224,11 +250,21 @@ public class UserService {
             user.setLastActiveAt(eventTime);
         }
 
-        // 如果先前處於警報或預警狀態，自動解除並重置回 SAFE
+        // Case 8: 判斷打卡事件是否具備「即時解除警報」效力
+        // 只有當打卡事件時間落在最近 24 小時內，才能解除 ALERTED 警報狀態！
+        boolean isRecentEvent = eventTime.isAfter(now.minusHours(24));
+        String returnMsg = "打卡成功！已為您更新安全狀態，祝您平安順心。";
+
         if (user.getSafetyStatus() != SafetyStatus.SAFE) {
-            SafetyStatus oldStatus = user.getSafetyStatus();
-            user.setSafetyStatus(SafetyStatus.SAFE);
-            log.info("💚 使用者 [{}] 完成打卡，安全狀態已由 {} 重置為 SAFE！", user.getNickname(), oldStatus);
+            if (isRecentEvent) {
+                SafetyStatus oldStatus = user.getSafetyStatus();
+                user.setSafetyStatus(SafetyStatus.SAFE);
+                log.info("💚 使用者 [{}] 完成有效近期打卡，安全狀態已由 {} 重置為 SAFE！", user.getNickname(), oldStatus);
+            } else {
+                log.warn("⚠️ 使用者 [{}] 目前處於 ALERTED 警報狀態，但收到的補發打卡時間過於陳舊 ({}，超過 24 小時前)，不予解除警報！", 
+                        user.getNickname(), eventTime);
+                returnMsg = "打卡紀錄已保存，但因事件時間已超過 24 小時，目前仍維持警報狀態，請進行即時打卡解除警報。";
+            }
         }
         userRepository.save(user);
 
@@ -249,9 +285,9 @@ public class UserService {
                 .userId(user.getId())
                 .loginRecordId(savedRecord.getId())
                 .checkInTime(eventTime)
-                .safetyStatus(SafetyStatus.SAFE)
-                .nextCheckInDeadline(eventTime.plusHours(24))
-                .message("打卡成功！已為您更新安全狀態，祝您平安順心。")
+                .safetyStatus(user.getSafetyStatus())
+                .nextCheckInDeadline(user.getLastActiveAt() != null ? user.getLastActiveAt().plusHours(24) : now.plusHours(24))
+                .message(returnMsg)
                 .build();
     }
 

@@ -73,16 +73,17 @@ public class LoginRecordService {
             user = userRepository.findById(userId).orElse(null);
         }
         if (user == null && phone != null && !phone.isBlank()) {
-            user = userRepository.findByPhone(phone).orElse(null);
+            user = userRepository.findByPhone(phone.trim()).orElse(null);
             if (user != null) {
-                log.info("🔄 getRecordsByUserId: 透過手機門號 [{}] 自動找回使用者打卡紀錄 (ID: {})", phone, user.getId());
+                log.info("🔄 getRecordsByUserId: 透過手機門號 [{}] 自動找回使用者打卡紀錄 (ID: {})", phone.trim(), user.getId());
             }
         }
         if (user == null) {
             throw new IllegalArgumentException("找不到該使用者");
         }
         
-        List<LoginRecord> records = loginRecordRepository.findByUserIdOrderByLoginTimeDesc(user.getId());
+        // Case 7: 每次僅撈出時間最近的 5 筆打卡紀錄，防止歷史紀錄無限膨脹導致伺服器 OOM
+        List<LoginRecord> records = loginRecordRepository.findTop5ByUserIdOrderByLoginTimeDesc(user.getId());
         return records.stream()
                 .map(LoginRecordResponse::fromEntity)
                 .collect(Collectors.toList());

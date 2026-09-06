@@ -11,6 +11,7 @@ import java.util.UUID;
 @Repository
 public interface LoginRecordRepository extends JpaRepository<LoginRecord, UUID> {
     List<LoginRecord> findByUserIdOrderByLoginTimeDesc(UUID userId);
+    List<LoginRecord> findTop5ByUserIdOrderByLoginTimeDesc(UUID userId);
     List<LoginRecord> findByUserId(UUID userId);
     Optional<LoginRecord> findFirstByUserIdOrderByLoginTimeDesc(UUID userId);
 }

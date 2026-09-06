@@ -45,20 +45,33 @@ public class UserSafetyService {
         }
 
         for (User user : overdueSafeUsers) {
-            LocalDateTime lastActive = user.getLastActiveAt() != null ? user.getLastActiveAt() : user.getCreatedAt();
-            long hoursSinceLastActive = Duration.between(lastActive, now).toHours();
+            // Case 6: 雙重檢查 (Double-Check)，避免在排程處理期間使用者剛好完成打卡
+            User latestUser = userRepository.findById(user.getId()).orElse(null);
+            if (latestUser == null) {
+                continue;
+            }
+
+            LocalDateTime latestActive = latestUser.getLastActiveAt() != null ? latestUser.getLastActiveAt() : latestUser.getCreatedAt();
+            // 若最新狀態已非 SAFE，或者最後活躍時間已經更新在 24 小時之內，代表使用者已在此期間打卡，立即跳過！
+            if (latestUser.getSafetyStatus() != SafetyStatus.SAFE || !latestActive.isBefore(threshold)) {
+                log.info("⏩ [併發保護] 使用者 {} (ID: {}) 於排程處理期間已完成打卡 (最後活躍時間: {})，已自動略過警報觸發！", 
+                        latestUser.getNickname(), latestUser.getId(), latestActive);
+                continue;
+            }
+
+            long hoursSinceLastActive = Duration.between(latestActive, now).toHours();
 
             log.warn("🚨 警報發送判定：使用者 {} (ID: {}) 已 {} 小時未登入打卡！最後活躍時間：{}", 
-                    user.getNickname(), user.getId(), hoursSinceLastActive, lastActive);
+                    latestUser.getNickname(), latestUser.getId(), hoursSinceLastActive, latestActive);
             
-            triggerSafetyAlert(user, lastActive);
+            triggerSafetyAlert(latestUser, latestActive);
 
             // 更新狀態為 ALERTED 並存檔，避免下一次排程掃描時重複報警
-            user.setSafetyStatus(SafetyStatus.ALERTED);
-            userRepository.save(user);
+            latestUser.setSafetyStatus(SafetyStatus.ALERTED);
+            userRepository.save(latestUser);
         }
         
-        log.info("單身人士安全活躍度檢測執行完畢，本次共觸發 {} 筆警報通報。", overdueSafeUsers.size());
+        log.info("單身人士安全活躍度檢測執行完畢。");
     }
 
     /**
