@@ -76,6 +76,16 @@ public class DataInitializer implements CommandLineRunner {
                 modified = true;
             }
 
+            if (!TEST_USER_NICKNAME.equals(targetUser.getNickname())) {
+                targetUser.setNickname(TEST_USER_NICKNAME);
+                modified = true;
+            }
+
+            if (!TEST_USER_EMERGENCY.equals(targetUser.getEmergencyContactPhone())) {
+                targetUser.setEmergencyContactPhone(TEST_USER_EMERGENCY);
+                modified = true;
+            }
+
             // 檢查密碼是否依然符合預設密碼
             if (!passwordEncoder.matches(TEST_USER_PASSWORD, targetUser.getPasswordHash())) {
                 targetUser.setPasswordHash(passwordEncoder.encode(TEST_USER_PASSWORD));
