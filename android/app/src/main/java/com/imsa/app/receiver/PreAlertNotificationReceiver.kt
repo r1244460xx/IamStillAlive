@@ -54,14 +54,17 @@ class PreAlertNotificationReceiver : BroadcastReceiver() {
         val soundUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
         val vibrationPattern = longArrayOf(0, 250, 100, 250)
 
+        val hours = (com.imsa.app.util.HeartbeatSyncManager.currentPreAlertDelayMs / (3600 * 1000L)).toInt()
+        val timeDesc = if (hours > 0) "${hours} 小時" else "${com.imsa.app.util.HeartbeatSyncManager.currentPreAlertDelayMs / 1000} 秒"
+
         // 4. 構建 LINE 風格的高優先級通知卡片 (可在鎖定螢幕上完整顯示)
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.sym_def_app_icon)
             .setContentTitle("⚠️ IMSA 健在守護・平安提醒")
-            .setContentText("您已接近 24 小時未解鎖手機！請滑動解鎖以確認平安，避免通報緊急聯絡人。")
+            .setContentText("您已長達 $timeDesc 未解鎖手機！請滑動解鎖以確認平安，避免通報緊急聯絡人。")
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("您已超過 22 小時未解鎖手機！\n請隨意點選本卡片或直接解鎖手機以報平安，避免 2 小時後正式向緊急聯絡人發出警報。")
+                    .bigText("您已超過 $timeDesc 未解鎖手機！\n請隨意點選本卡片或直接解鎖手機以報平安，避免後續向緊急聯絡人發出警報。")
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC) // 鎖定螢幕完整顯示卡片

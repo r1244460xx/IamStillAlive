@@ -38,6 +38,12 @@ IMSA Android 是為單身獨居人士量身打造的守護客戶端應用，採�
 * 宣告 `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`。
 * App 首頁提供一鍵跳轉白名單授權，防止手機進入 Doze 深度睡眠時被 OEM 系統凍結。
 
+### 2.3 預警提醒卡片機制 (`HeartbeatSyncManager` & `PreAlertNotificationReceiver`)
+* **11 小時平安預警鬧鐘**：登入或每次手動解鎖成功後，使用 `AlarmManager.setExactAndAllowWhileIdle` 預約 11 小時後的精準喚醒鬧鐘。
+* **解鎖無條件推延**：只要使用者手動解鎖（`ACTION_USER_PRESENT`），必定 100% 立即向後推遲預警鬧鐘並消除卡片（純本地作業，不受 15 秒網路打卡節流阻擋）。
+* **被動點亮防誤判**：處於鎖定狀態時（`isKeyguardLocked == true`），螢幕被動點亮絕不誤判為解鎖，使提醒卡片穩定保留在鎖定螢幕上。
+* **1 小時最後緩衝期**：手機端於第 11 小時在鎖定螢幕彈出高優先級通知卡片，提醒使用者確認平安；若持續未解鎖，後端將於第 12 小時正式向緊急聯絡人發送緊急通報。
+
 ---
 
 ## 3. 目錄結構

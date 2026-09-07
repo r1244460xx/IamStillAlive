@@ -33,7 +33,7 @@ public class UserSafetyService {
         log.info("開始執行單身人士安全活躍度檢測...");
         
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime threshold = now.minusHours(24);
+        LocalDateTime threshold = now.minusHours(12);
 
         // 批次查詢：撈出潛在逾期名單（唯讀快照，不佔用行寫鎖）
         List<User> overdueSafeUsers = userRepository.findByStatusAndSafetyStatusAndLastActiveAtBefore(
@@ -76,13 +76,13 @@ public class UserSafetyService {
     }
 
     /**
-     * 超過 24 小時未登入的警報觸發邏輯 (通報緊急聯絡人)
+     * 超過 12 小時未登入的警報觸發邏輯 (通報緊急聯絡人)
      * 最佳實踐：此方法在 DB 交易之外執行，以 print log 完整模擬第三方簡訊閘道發送，
      * 即使未來串接真實簡訊/推播 API 耗時或網路拋出例外，也不會造成資料庫行鎖卡死或交易 Rollback。
      */
     private void triggerSafetyAlert(User user, LocalDateTime lastLoginTime) {
-        log.warn("=== 🚨 [24 小時緊急通報開始] ===");
-        log.warn("🚨 使用者 [{}] (電話: {}) 已超過 24 小時未打卡證明健在！最後打卡時間: {}", 
+        log.warn("=== 🚨 [12 小時緊急通報開始] ===");
+        log.warn("🚨 使用者 [{}] (電話: {}) 已超過 12 小時未打卡證明健在！最後打卡時間: {}", 
                 user.getNickname(), user.getPhone(), lastLoginTime);
         
         // 檢測使用者最後一筆打卡紀錄是否為手機低電量/關機
@@ -103,7 +103,7 @@ public class UserSafetyService {
         if (user.getEmergencyContactPhone() != null && !user.getEmergencyContactPhone().isBlank()) {
             // 📱 最佳實踐：以 Print Log 完整模擬簡訊發送
             String note = isShutdown ? "【系統附註：該受保護裝置最後紀錄為手機低電量關機，可能僅為手機斷電，請先嘗試電話聯繫確認】" : "請儘速確認其人身安全！";
-            String smsContent = String.format("【IMSA 緊急通報】您關注的親友 [%s] (電話: %s) 已超過 24 小時未打卡回報平安，最後在線時間為 %s。%s",
+            String smsContent = String.format("【IMSA 緊急通報】您關注的親友 [%s] (電話: %s) 已超過 12 小時未打卡回報平安，最後在線時間為 %s。%s",
                     user.getNickname(), user.getPhone(), lastLoginTime, note);
 
             log.info("📱 ------------------------------------------------------------");
@@ -116,6 +116,6 @@ public class UserSafetyService {
             log.warn("⚠️ 該使用者尚未設定緊急聯絡電話，無法發送緊急簡訊。");
         }
         
-        log.warn("=== 🚨 [24 小時緊急通報結束] ===");
+        log.warn("=== 🚨 [12 小時緊急通報結束] ===");
     }
 }

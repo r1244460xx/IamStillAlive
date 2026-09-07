@@ -20,7 +20,7 @@ class SafetyGuardianAccessibilityService : AccessibilityService() {
 
     companion object {
         private const val TAG = "SafetyGuardianAcc"
-        private const val THROTTLE_MS = 15_000L // 15 秒防抖節流
+        private const val THROTTLE_MS = 15_000L // 15 秒網路打卡防抖節流
     }
 
     override fun onCreate() {
@@ -46,6 +46,7 @@ class SafetyGuardianAccessibilityService : AccessibilityService() {
                 val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
                 val isKeyguardLocked = keyguardManager?.isKeyguardLocked ?: false
 
+                // ★ 關鍵防護：處於鎖定狀態時（isKeyguardLocked == true），點亮螢幕絕不誤判為解鎖，使卡片能穩定保留在鎖屏上
                 val isUnlockEvent = when (action) {
                     Intent.ACTION_USER_PRESENT -> true
                     Intent.ACTION_SCREEN_ON -> !isKeyguardLocked // 若無設定鎖定密碼，點亮螢幕即算解鎖
@@ -53,9 +54,13 @@ class SafetyGuardianAccessibilityService : AccessibilityService() {
                 }
 
                 if (isUnlockEvent) {
+                    // ★ 解鎖動作核心保障：鬧鐘推延與卡片消除 100% 執行（本地 AlarmManager 作業，不被 15 秒網路節流阻擋）
+                    HeartbeatSyncManager.refreshPreAlertAlarm(applicationContext)
+
+                    // ★ 網路打卡 API：維持 15 秒防抖節流，避免短時間頻繁開關螢幕造成伺服器負載
                     val now = System.currentTimeMillis()
                     if (now - lastUnlockTime < THROTTLE_MS) {
-                        Log.d(TAG, "⏱️ 偵測到解鎖動作 ($action)，但處於節流冷卻期內（${(now - lastUnlockTime) / 1000}s < 15s），略過此次打卡")
+                        Log.d(TAG, "⏱️ 預警鬧鐘已向後推延！但網路打卡處於節流冷卻期內（${(now - lastUnlockTime) / 1000}s < 15s），略過重複 API 打卡")
                         return
                     }
                     lastUnlockTime = now
@@ -80,7 +85,7 @@ class SafetyGuardianAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // 本服務僅利用系統綁定機制確保背景常駐與螢幕解鎖廣播監聽，不擷取或分析任何畫面無障礙事件
+        // 本服務僅利用系統綁定機制確保背景常駐與螢幕解鎖廣播監聽，保持完全透明不干擾日常操作
     }
 
     override fun onInterrupt() {

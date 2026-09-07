@@ -244,7 +244,7 @@ public class UserService {
                         .loginRecordId(existing.getId())
                         .checkInTime(existing.getLoginTime())
                         .safetyStatus(user.getSafetyStatus())
-                        .nextCheckInDeadline(user.getLastActiveAt() != null ? user.getLastActiveAt().plusHours(24) : now.plusHours(24))
+                        .nextCheckInDeadline(user.getLastActiveAt() != null ? user.getLastActiveAt().plusHours(12) : now.plusHours(12))
                         .message("打卡成功！(已同步最新安全狀態)")
                         .build();
             }
@@ -307,7 +307,7 @@ public class UserService {
                         .loginRecordId(conflictRec.getId())
                         .checkInTime(conflictRec.getLoginTime())
                         .safetyStatus(user.getSafetyStatus())
-                        .nextCheckInDeadline(user.getLastActiveAt() != null ? user.getLastActiveAt().plusHours(24) : now.plusHours(24))
+                        .nextCheckInDeadline(user.getLastActiveAt() != null ? user.getLastActiveAt().plusHours(12) : now.plusHours(12))
                         .message("打卡成功！(已同步最新安全狀態)")
                         .build();
             }
@@ -319,7 +319,7 @@ public class UserService {
                 .loginRecordId(savedRecord.getId())
                 .checkInTime(eventTime)
                 .safetyStatus(user.getSafetyStatus())
-                .nextCheckInDeadline(user.getLastActiveAt() != null ? user.getLastActiveAt().plusHours(24) : now.plusHours(24))
+                .nextCheckInDeadline(user.getLastActiveAt() != null ? user.getLastActiveAt().plusHours(12) : now.plusHours(12))
                 .message(returnMsg)
                 .build();
     }

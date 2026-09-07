@@ -46,6 +46,10 @@ object HeartbeatSyncManager {
     // 供外部或 ViewModel 註冊打卡成功回調以即時刷新安全狀態與紀錄
     var onCheckInSuccessListener: (() -> Unit)? = null
 
+    // 平安預警提醒間隔 (11 小時)
+    const val DEFAULT_PRE_ALERT_DELAY_MS = 11 * 3600 * 1000L
+    var currentPreAlertDelayMs: Long = 11 * 3600 * 1000L
+
     fun init(context: Context) {
         val application = context.applicationContext
         val session = SessionManager(application)
@@ -58,7 +62,7 @@ object HeartbeatSyncManager {
         }
 
         if (session.isLoggedIn()) {
-            schedulePreAlertAlarm(application)
+            refreshPreAlertAlarm(application)
         }
     }
 
@@ -154,9 +158,8 @@ object HeartbeatSyncManager {
             remark = "螢幕解鎖自動報平安",
             networkType = "ScreenUnlock"
         )
-        // 2. 解鎖即時清除已顯示的 22 小時預警卡片，並重新預約 22 小時預警鬧鐘
-        cancelPreAlertNotification(context)
-        schedulePreAlertAlarm(context)
+        // 2. 解鎖即時清除已顯示的預警卡片，並重新預約預警鬧鐘 (向後延後)
+        refreshPreAlertAlarm(context)
         Log.i(TAG, "📱 偵測到手機螢幕解鎖！已更新手機端最近一筆打卡紀錄 [$nowIso]，立即嘗試發送心跳 API...")
 
         scope.launch {
@@ -280,8 +283,7 @@ object HeartbeatSyncManager {
                 session.nextDeadline = data.nextCheckInDeadline
                 currentRetryIntervalMs = INITIAL_RETRY_INTERVAL_MS
                 setDisconnected(false, context)
-                cancelPreAlertNotification(context)
-                schedulePreAlertAlarm(context)
+                refreshPreAlertAlarm(context)
                 onCheckInSuccessListener?.invoke()
                 return true
             } else {
@@ -363,22 +365,36 @@ object HeartbeatSyncManager {
     }
 
     /**
-     * 消除目前彈出的 22 小時平安提醒通知卡片
+     * 強制刷新平安預警鬧鐘：
+     * 1. 立即消除畫面上任何已出現的預警通知卡片。
+     * 2. 重新設定下一次預警鬧鐘 (向後推延)。
+     * 此方法為純本地作業，不受網路狀態或網路打卡節流限制，保證必定被執行。
+     */
+    fun refreshPreAlertAlarm(context: Context, delayMillis: Long = currentPreAlertDelayMs) {
+        val session = SessionManager(context)
+        if (!session.isLoggedIn()) return
+        cancelPreAlertNotification(context)
+        schedulePreAlertAlarm(context, delayMillis)
+        Log.d(TAG, "🔄 [鬧鐘刷新] 已即時向後推延預警鬧鐘並消除通知卡片")
+    }
+
+    /**
+     * 消除目前彈出的平安提醒通知卡片
      */
     fun cancelPreAlertNotification(context: Context) {
         try {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             nm?.cancel(PreAlertNotificationReceiver.NOTIFICATION_ID)
-            Log.d(TAG, "🔕 [預警消除] 已消除 22 小時平安提醒通知卡片")
+            Log.d(TAG, "🔕 [預警消除] 已消除平安提醒通知卡片")
         } catch (e: Exception) {
             Log.w(TAG, "⚠️ 清除預警通知失敗: ${e.localizedMessage}")
         }
     }
 
     /**
-     * 排程 22 小時平安預警鬧鐘 (RTC_WAKEUP, setExactAndAllowWhileIdle)
+     * 排程平安預警鬧鐘 (RTC_WAKEUP, setExactAndAllowWhileIdle)
      */
-    fun schedulePreAlertAlarm(context: Context, delayMillis: Long = 22 * 3600 * 1000L) {
+    fun schedulePreAlertAlarm(context: Context, delayMillis: Long = currentPreAlertDelayMs) {
         try {
             val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
             val intent = Intent(context, PreAlertNotificationReceiver::class.java).apply {
@@ -396,14 +412,19 @@ object HeartbeatSyncManager {
                 triggerAtMillis,
                 pendingIntent
             )
-            Log.i(TAG, "⏰ [預警排程] 已設定 22 小時平安預警鬧鐘於 ${delayMillis / 1000 / 3600} 小時後觸發")
+            val delayDesc = if (delayMillis >= 3600_000L) {
+                "${delayMillis / 1000 / 3600} 小時"
+            } else {
+                "${delayMillis / 1000} 秒"
+            }
+            Log.i(TAG, "⏰ [預警排程] 已設定平安預警鬧鐘於 $delayDesc 後觸發 (目標時間戳: $triggerAtMillis)")
         } catch (e: Exception) {
             Log.w(TAG, "⚠️ 設定預警鬧鐘失敗: ${e.localizedMessage}")
         }
     }
 
     /**
-     * 取消已排程之 22 小時平安預警鬧鐘
+     * 取消已排程之平安預警鬧鐘
      */
     fun cancelPreAlertAlarm(context: Context) {
         try {
@@ -418,7 +439,7 @@ object HeartbeatSyncManager {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             alarmManager.cancel(pendingIntent)
-            Log.d(TAG, "🛑 [預警排程] 已取消 22 小時平安預警鬧鐘")
+            Log.d(TAG, "🛑 [預警排程] 已取消平安預警鬧鐘")
         } catch (e: Exception) {
             Log.w(TAG, "⚠️ 取消預警鬧鐘失敗: ${e.localizedMessage}")
         }
