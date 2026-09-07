@@ -34,12 +34,51 @@ object GuardianPermissionHelper {
 
     /**
      * 開啟系統「無障礙設定」頁面
+     * 優先精準跳轉至「已下載的應用程式 / 下載的服務」清單，
+     * 讓使用者直接看見 IMSA 健在守護，省去在「通用/視覺/聽覺/肢體」等分頁與眾多項目中尋找的時間。
      */
     fun openAccessibilitySettings(context: Context) {
-        val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        val intents = listOf(
+            // 1. 小米 HyperOS / MIUI 及原生 Android「下載的應用程式 (InstalledAccessibilityService)」頁面
+            Intent().apply {
+                component = android.content.ComponentName("com.android.settings", "com.android.settings.SubSettings")
+                putExtra(":settings:show_fragment", "com.android.settings.accessibility.InstalledAccessibilityService")
+                putExtra(":settings:show_fragment_title", "下載的應用程式")
+            },
+            // 2. 三星 One UI 專屬「已安裝的服務」頁面
+            Intent().apply {
+                component = android.content.ComponentName("com.android.settings", "com.android.settings.SubSettings")
+                putExtra(":settings:show_fragment", "com.samsung.android.settings.accessibility.InstalledServicesPreferenceFragment")
+                putExtra(":settings:show_fragment_title", "已安裝的服務")
+            },
+            // 3. 原生 AOSP 無障礙頂層設定
+            Intent().apply {
+                component = android.content.ComponentName("com.android.settings", "com.android.settings.SubSettings")
+                putExtra(":settings:show_fragment", "com.android.settings.accessibility.AccessibilitySettings")
+            },
+            // 4. 系統標準通用 Action
+            Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+        )
+
+        for (intent in intents) {
+            try {
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                context.startActivity(intent)
+                return
+            } catch (_: Exception) {
+                // 繼續嘗試下一個
+            }
         }
-        context.startActivity(intent)
+
+        // 終極 Fallback
+        try {
+            val fallback = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(fallback)
+        } catch (_: Exception) {
+            // 忽略
+        }
     }
 
     /**
