@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -227,6 +228,28 @@ public class UserService {
         }
 
         LocalDateTime now = LocalDateTime.now();
+
+        // 冪等性防護 (Idempotency Key)：若客戶端提供 clientRequestId，先檢查是否已處理過
+        String clientReqId = (request != null && request.getClientRequestId() != null && !request.getClientRequestId().isBlank())
+                ? request.getClientRequestId().trim()
+                : null;
+
+        if (clientReqId != null) {
+            Optional<LoginRecord> existingRecord = loginRecordRepository.findByClientRequestId(clientReqId);
+            if (existingRecord.isPresent()) {
+                LoginRecord existing = existingRecord.get();
+                log.info("⏩ [打卡冪等命中] 收到重複打卡請求 (clientRequestId: {})，直接回傳既有打卡成功結果！", clientReqId);
+                return UserCheckInResponse.builder()
+                        .userId(user.getId())
+                        .loginRecordId(existing.getId())
+                        .checkInTime(existing.getLoginTime())
+                        .safetyStatus(user.getSafetyStatus())
+                        .nextCheckInDeadline(user.getLastActiveAt() != null ? user.getLastActiveAt().plusHours(24) : now.plusHours(24))
+                        .message("打卡成功！(已同步最新安全狀態)")
+                        .build();
+            }
+        }
+
         LocalDateTime eventTime = (request != null && request.getCheckInTime() != null) 
                 ? request.getCheckInTime() 
                 : now;
@@ -269,9 +292,27 @@ public class UserService {
                 .networkType(request != null ? request.getNetworkType() : null)
                 .remark(request != null && request.getRemark() != null && !request.getRemark().isBlank() 
                         ? request.getRemark() : "使用者一鍵打卡報平安")
+                .clientRequestId(clientReqId)
                 .build();
 
-        LoginRecord savedRecord = loginRecordRepository.save(record);
+        LoginRecord savedRecord;
+        try {
+            savedRecord = loginRecordRepository.saveAndFlush(record);
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            if (clientReqId != null) {
+                log.info("⏩ [打卡併發冪等衝突] clientRequestId: {} 觸發唯一約束，回傳併發已寫入之紀錄", clientReqId);
+                LoginRecord conflictRec = loginRecordRepository.findByClientRequestId(clientReqId).orElseThrow(() -> e);
+                return UserCheckInResponse.builder()
+                        .userId(user.getId())
+                        .loginRecordId(conflictRec.getId())
+                        .checkInTime(conflictRec.getLoginTime())
+                        .safetyStatus(user.getSafetyStatus())
+                        .nextCheckInDeadline(user.getLastActiveAt() != null ? user.getLastActiveAt().plusHours(24) : now.plusHours(24))
+                        .message("打卡成功！(已同步最新安全狀態)")
+                        .build();
+            }
+            throw e;
+        }
 
         return UserCheckInResponse.builder()
                 .userId(user.getId())

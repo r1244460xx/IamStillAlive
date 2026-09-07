@@ -78,11 +78,17 @@ class SessionManager(context: Context) {
             .apply()
     }
 
-    fun savePendingCheckIn(timestamp: String, remark: String, networkType: String = "ScreenUnlock") {
+    fun savePendingCheckIn(
+        timestamp: String, 
+        remark: String, 
+        networkType: String = "ScreenUnlock",
+        clientRequestId: String = java.util.UUID.randomUUID().toString()
+    ) {
         prefs.edit()
             .putString("pending_checkin_timestamp", timestamp)
             .putString("pending_checkin_remark", remark)
             .putString("pending_checkin_network_type", networkType)
+            .putString("pending_checkin_client_request_id", clientRequestId)
             .apply()
     }
 
@@ -90,7 +96,8 @@ class SessionManager(context: Context) {
         val timestamp = prefs.getString("pending_checkin_timestamp", null) ?: return null
         val remark = prefs.getString("pending_checkin_remark", "螢幕解鎖自動報平安 (離線暫存補傳)") ?: "螢幕解鎖自動報平安 (離線暫存補傳)"
         val networkType = prefs.getString("pending_checkin_network_type", "ScreenUnlock") ?: "ScreenUnlock"
-        return PendingCheckIn(timestamp, remark, networkType)
+        val clientRequestId = prefs.getString("pending_checkin_client_request_id", null) ?: java.util.UUID.randomUUID().toString()
+        return PendingCheckIn(timestamp, remark, networkType, clientRequestId)
     }
 
     fun clearPendingCheckIn() {
@@ -98,6 +105,7 @@ class SessionManager(context: Context) {
             .remove("pending_checkin_timestamp")
             .remove("pending_checkin_remark")
             .remove("pending_checkin_network_type")
+            .remove("pending_checkin_client_request_id")
             .apply()
     }
 

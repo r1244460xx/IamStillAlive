@@ -42,4 +42,7 @@ public class LoginRecord {
 
     @Column(nullable = true)
     private String remark;
+
+    @Column(name = "client_request_id", unique = true, nullable = true)
+    private String clientRequestId;
 }

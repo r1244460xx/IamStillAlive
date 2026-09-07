@@ -13,4 +13,5 @@ public class UserCheckInRequest {
     private String networkType;
     private String remark;
     private LocalDateTime checkInTime;
+    private String clientRequestId;
 }

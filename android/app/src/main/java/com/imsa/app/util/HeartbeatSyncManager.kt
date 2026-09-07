@@ -258,7 +258,8 @@ object HeartbeatSyncManager {
             }
 
             val tagPrefix = if (customNetworkType != null) "🔌 [$customNetworkType]" else if (isInstantRetry) "⚡ [瞬時重試]" else if (checkInTimestamp == null) "📱 [解鎖即時]" else "⏱️ [退避重試]"
-            Log.d(TAG, "$tagPrefix 正在發送打卡心跳 API (類型: $finalNetworkType, 打卡時間: $checkInTimestamp)...")
+            val effectiveClientRequestId = pending?.clientRequestId ?: java.util.UUID.randomUUID().toString()
+            Log.d(TAG, "$tagPrefix 正在發送打卡心跳 API (類型: $finalNetworkType, 冪等ID: $effectiveClientRequestId, 打卡時間: $checkInTimestamp)...")
 
             val api = ImsaApiService.create(session.serverUrl)
             val request = UserCheckInRequest(
@@ -266,7 +267,8 @@ object HeartbeatSyncManager {
                 deviceInfo = "${Build.MANUFACTURER} ${Build.MODEL}",
                 networkType = finalNetworkType,
                 remark = finalRemark,
-                checkInTime = checkInTimestamp
+                checkInTime = checkInTimestamp,
+                clientRequestId = effectiveClientRequestId
             )
             val response = api.checkIn(userId, request)
 

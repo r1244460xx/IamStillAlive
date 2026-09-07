@@ -37,12 +37,14 @@ class SafetyCheckInWorker(
 
         return try {
             val api = ImsaApiService.create(session.serverUrl)
+            val effectiveClientRequestId = pendingCheckIn?.clientRequestId ?: java.util.UUID.randomUUID().toString()
             val request = UserCheckInRequest(
                 phone = session.phone,
                 deviceInfo = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}",
                 networkType = effectiveNetworkType,
                 remark = effectiveRemark,
-                checkInTime = effectiveCheckInTime
+                checkInTime = effectiveCheckInTime,
+                clientRequestId = effectiveClientRequestId
             )
             val response = api.checkIn(userId, request)
 

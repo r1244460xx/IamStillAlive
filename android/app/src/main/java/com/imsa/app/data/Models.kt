@@ -50,13 +50,15 @@ data class UserCheckInRequest(
     val deviceInfo: String? = null,
     val networkType: String? = null,
     val remark: String? = null,
-    val checkInTime: String? = null
+    val checkInTime: String? = null,
+    val clientRequestId: String? = null
 )
 
 data class PendingCheckIn(
     val timestamp: String,
     val remark: String,
-    val networkType: String = "ScreenUnlock"
+    val networkType: String = "ScreenUnlock",
+    val clientRequestId: String = java.util.UUID.randomUUID().toString()
 )
 
 data class UserCheckInResponse(
