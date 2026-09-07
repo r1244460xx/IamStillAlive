@@ -6,6 +6,7 @@ import com.imsa.backend.entity.enums.SafetyStatus;
 import com.imsa.backend.entity.enums.UserStatus;
 import com.imsa.backend.repository.LoginRecordRepository;
 import com.imsa.backend.repository.UserRepository;
+import com.imsa.backend.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ public class UserSafetyService {
 
     private final UserRepository userRepository;
     private final LoginRecordRepository loginRecordRepository;
+    private final NotificationService notificationService;
 
     /**
      * 檢查所有活躍使用者的安全狀態（最佳實踐架構）：
@@ -101,16 +103,18 @@ public class UserSafetyService {
         }
 
         if (user.getEmergencyContactPhone() != null && !user.getEmergencyContactPhone().isBlank()) {
-            // 📱 最佳實踐：以 Print Log 完整模擬簡訊發送
             String note = isShutdown ? "【系統附註：該受保護裝置最後紀錄為手機低電量關機，可能僅為手機斷電，請先嘗試電話聯繫確認】" : "請儘速確認其人身安全！";
             String smsContent = String.format("【IMSA 緊急通報】您關注的親友 [%s] (電話: %s) 已超過 12 小時未打卡回報平安，最後在線時間為 %s。%s",
                     user.getNickname(), user.getPhone(), lastLoginTime, note);
 
             log.info("📱 ------------------------------------------------------------");
-            log.info("📱 [SMS 簡訊發送模擬] 正在發送緊急簡訊至第三方電信閘道...");
-            log.info("📱 [SMS 簡訊發送模擬] 收件人電話（緊急聯絡人）: {}", user.getEmergencyContactPhone());
-            log.info("📱 [SMS 簡訊發送模擬] 簡訊內容: \"{}\"", smsContent);
-            log.info("✅ [SMS 簡訊發送模擬] 電信閘道回傳：簡訊已成功排程投遞！(Status: 200 OK, MessageId: MSG-SIM-{})", UUID.randomUUID().toString().substring(0, 8));
+            log.info("📱 正在發送緊急簡訊至通報服務 (收件人: {})...", user.getEmergencyContactPhone());
+            boolean success = notificationService.sendEmergencyAlert(user.getEmergencyContactPhone(), smsContent);
+            if (success) {
+                log.info("✅ 緊急通報簡訊處理成功！");
+            } else {
+                log.warn("⚠️ 緊急通報簡訊發送回傳失敗，請檢查通報服務設定與日誌。");
+            }
             log.info("📱 ------------------------------------------------------------");
         } else {
             log.warn("⚠️ 該使用者尚未設定緊急聯絡電話，無法發送緊急簡訊。");

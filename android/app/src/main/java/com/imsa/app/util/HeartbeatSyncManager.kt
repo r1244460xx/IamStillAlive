@@ -278,6 +278,11 @@ object HeartbeatSyncManager {
             if (response.isSuccessful && response.body() != null) {
                 val data = response.body()!!
                 Log.i(TAG, "🎉 $tagPrefix 成功上傳心跳！後端已記錄打卡時間: ${data.checkInTime}，下次截止: ${data.nextCheckInDeadline}")
+                GuardianAuditLogger.record(
+                    context, 
+                    "CHECK_IN_SUCCESS", 
+                    "$tagPrefix 成功上傳心跳 (伺服器截止期: ${data.nextCheckInDeadline})"
+                )
                 session.clearPendingCheckIn()
                 session.safetyStatus = data.safetyStatus
                 session.nextDeadline = data.nextCheckInDeadline
@@ -288,11 +293,21 @@ object HeartbeatSyncManager {
                 return true
             } else {
                 Log.w(TAG, "⚠️ $tagPrefix 打心跳 API 回應失敗 (${response.code()})")
+                GuardianAuditLogger.record(
+                    context, 
+                    "CHECK_IN_FAILED", 
+                    "$tagPrefix 打心跳 API 回應失敗: HTTP ${response.code()}"
+                )
                 return false
             }
         } catch (e: Exception) {
             val tagPrefix = if (customNetworkType != null) "🔌 [$customNetworkType]" else if (isInstantRetry) "⚡ [瞬時重試]" else "⏱️ [同步打卡]"
             Log.w(TAG, "❌ $tagPrefix 連線異常 (${e.localizedMessage})")
+            GuardianAuditLogger.record(
+                context, 
+                "CHECK_IN_ERROR", 
+                "$tagPrefix 連線異常: ${e.localizedMessage}"
+            )
             return false
         } finally {
             syncMutex.unlock()
@@ -386,6 +401,7 @@ object HeartbeatSyncManager {
             val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
             nm?.cancel(PreAlertNotificationReceiver.NOTIFICATION_ID)
             Log.d(TAG, "🔕 [預警消除] 已消除平安提醒通知卡片")
+            GuardianAuditLogger.record(context, "CARD_DISMISSED", "平安提醒通知卡片已清除")
         } catch (e: Exception) {
             Log.w(TAG, "⚠️ 清除預警通知失敗: ${e.localizedMessage}")
         }
@@ -417,7 +433,13 @@ object HeartbeatSyncManager {
             } else {
                 "${delayMillis / 1000} 秒"
             }
-            Log.i(TAG, "⏰ [預警排程] 已設定平安預警鬧鐘於 $delayDesc 後觸發 (目標時間戳: $triggerAtMillis)")
+            val targetTimeStr = GuardianAuditLogger.formatEpochTime(triggerAtMillis)
+            Log.i(TAG, "⏰ [預警排程] 已設定平安預警鬧鐘於 $delayDesc 後觸發 (目標時間: $targetTimeStr)")
+            GuardianAuditLogger.record(
+                context, 
+                "ALARM_SCHEDULED", 
+                "鬧鐘設定於 $delayDesc 後觸發 (目標: $targetTimeStr)"
+            )
         } catch (e: Exception) {
             Log.w(TAG, "⚠️ 設定預警鬧鐘失敗: ${e.localizedMessage}")
         }

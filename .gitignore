@@ -22,3 +22,9 @@ Thumbs.db
 /data/
 *.db
 
+# Local configurations & secrets
+*local.yml
+*.local.properties
+.env
+
+

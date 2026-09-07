@@ -1,0 +1,14 @@
+# ==============================================================================
+# 本地開發與測試環境設定範本 (application-local.yml.example)
+#
+# 使用方式：
+# 1. 複製此檔案並在同目錄命名為 `application-local.yml`
+# 2. 填入您個人的 Vonage API Key 與 Secret
+# 3. 注意：`application-local.yml` 已被 .gitignore 忽略，絕不會被提交至版本庫
+# ==============================================================================
+
+vonage:
+  api-key: YOUR_VONAGE_API_KEY
+  api-secret: YOUR_VONAGE_API_SECRET
+  from: "Vonage APIs"
+  dry-run: true # 開發期間強烈建議維持 true，避免排程或測試誤扣額度

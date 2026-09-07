@@ -97,5 +97,43 @@ cd android
 
 * **檢視守護打卡日誌**：
   ```bash
-  adb logcat -s SafetyGuardianAcc:I SafetyCheckInWorker:I
+  adb logcat -s SafetyGuardianAcc:I HeartbeatSyncMgr:I GuardianAudit:D
   ```
+
+* **一鍵查詢守護狀態與審計軌跡 (Audit Log Dump)**：
+  ```bash
+  adb shell am broadcast -n com.imsa.app/.receiver.GuardianDebugReceiver -a com.imsa.app.action.DUMP_STATUS
+  ```
+  *(將手機目前預警鬧鐘排程、最近 30 筆解鎖動作與推延歷史、伺服器心跳結果完整傾印於終端機)*
+
+* **清空手機端審計日誌**：
+  ```bash
+  adb shell am broadcast -n com.imsa.app/.receiver.GuardianDebugReceiver -a com.imsa.app.action.DUMP_STATUS --ez clear true
+  ```
+
+---
+
+## 6. 審計軌跡報告 (Diagnostics Report) 解讀指引
+
+執行 `DUMP_STATUS` 指令後，終端機會由新到舊輸出審計軌跡，格式解讀如下：
+
+### 6.1 事件類型與圖示代碼表
+
+| 圖示與事件代碼 | 代表含意 | 正常行為判讀 |
+| :--- | :--- | :--- |
+| 📱 `UNLOCK_DETECTED` | 系統無障礙守護進程偵測到手機解鎖 | 標註廣播動作（如 `USER_PRESENT`）與鎖屏狀態（`鎖屏=false` 代表真解鎖）。 |
+| ⏰ `ALARM_SCHEDULED` | `AlarmManager` 預警鬧鐘向後推延 | **關鍵指標**！每次解鎖後必須出現，目標時間應精準等於「解鎖時間 + 11 小時」。 |
+| 🔕 `CARD_DISMISSED` | 消除鎖定螢幕上的預警卡片 | 解鎖當下即時觸發，確保卡片不會滯留在畫面上。 |
+| 💚 `CHECK_IN_SUCCESS` | 心跳 API 成功送達後端伺服器 | 附帶後端回傳之安全截止期（Server Deadline = 當下時間 + 12 小時）。 |
+| ⏱️ `API_THROTTLED` | 15 秒網路防抖生效 | 短時間頻繁開關螢幕時出現。**注意：此時鬧鐘已被成功推延，僅略過 HTTP 請求**。 |
+| 🔔 `PRE_ALERT_TRIGGERED` | 11 小時無解鎖，預警鬧鐘時間抵達 | 點亮螢幕並彈出卡片。若使用者隨後解鎖，將接續觸發消除與推延。 |
+| ❌ `CHECK_IN_FAILED` / `CHECK_IN_ERROR` | 網路不通或伺服器異常 | 進入離線斷線保護狀態，心跳自動留置於本地暫存（`getPendingCheckIn`）待自動補傳。 |
+
+### 6.2 標準健康解鎖時序範例 (由舊到新讀取)
+每次您解鎖手機時，報告中應呈現如下標準鏈路：
+```text
+#03 [13:31:10.990] 📱 UNLOCK_DETECTED    | 廣播=USER_PRESENT, 鎖屏=false, 觸發推延鬧鐘與消除卡片
+#02 [13:31:11.008] ⏰ ALARM_SCHEDULED    | 鬧鐘設定於 11 小時 後觸發 (目標: 2026-09-08 00:31:11)
+#01 [13:31:12.351] 💚 CHECK_IN_SUCCESS   | 📱 [解鎖即時] 成功上傳心跳 (伺服器截止期: 2026-09-08T01:31:11)
+```
+- 說明：`13:31:10` 解鎖手機 ➡️ 本地鬧鐘瞬間推延至隔日 `00:31:11`（+11hr）➡️ 網路心跳上傳成功，後端截止期展延至隔日 `01:31:11`（+12hr）。兩者皆完整推進，守護安全無虞。

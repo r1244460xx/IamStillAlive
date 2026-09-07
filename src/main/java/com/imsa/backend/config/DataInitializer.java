@@ -34,7 +34,7 @@ public class DataInitializer implements CommandLineRunner {
     public static final String TEST_USER_PHONE = "0912345678";
     public static final String TEST_USER_PASSWORD = "pass123456";
     public static final String TEST_USER_NICKNAME = "測試者";
-    public static final String TEST_USER_EMERGENCY = "0987654321";
+    public static final String TEST_USER_EMERGENCY = "0909280630";
 
     @Override
     @Transactional

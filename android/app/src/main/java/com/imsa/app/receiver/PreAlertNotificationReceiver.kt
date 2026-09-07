@@ -78,7 +78,12 @@ class PreAlertNotificationReceiver : BroadcastReceiver() {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, notification)
 
-        Log.i(TAG, "✅ 已成功發送 22 小時平安預警卡片 (響鈴+震動+點亮螢幕)！")
+        Log.i(TAG, "✅ 已成功發送平安預警卡片 (響鈴+震動+點亮螢幕)！")
+        com.imsa.app.util.GuardianAuditLogger.record(
+            context,
+            "PRE_ALERT_TRIGGERED",
+            "預警鬧鐘時間抵達！已在鎖定螢幕發送平安預警卡片 (響鈴+震動+亮屏)"
+        )
     }
 
     private fun wakeUpScreen(context: Context) {

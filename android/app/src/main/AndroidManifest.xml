@@ -59,6 +59,14 @@
                 <action android:name="com.imsa.app.action.TRIGGER_PRE_ALERT" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".receiver.GuardianDebugReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.imsa.app.action.DUMP_STATUS" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

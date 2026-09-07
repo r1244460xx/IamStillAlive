@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import com.imsa.app.data.SessionManager
 import com.imsa.app.worker.SafetyCheckInWorker
 
+import com.imsa.app.util.GuardianAuditLogger
 import com.imsa.app.util.HeartbeatSyncManager
 
 class SafetyGuardianAccessibilityService : AccessibilityService() {
@@ -55,12 +56,22 @@ class SafetyGuardianAccessibilityService : AccessibilityService() {
 
                 if (isUnlockEvent) {
                     // ★ 解鎖動作核心保障：鬧鐘推延與卡片消除 100% 執行（本地 AlarmManager 作業，不被 15 秒網路節流阻擋）
+                    GuardianAuditLogger.record(
+                        applicationContext,
+                        "UNLOCK_DETECTED",
+                        "廣播=$action, 鎖屏=$isKeyguardLocked, 觸發推延鬧鐘與消除卡片"
+                    )
                     HeartbeatSyncManager.refreshPreAlertAlarm(applicationContext)
 
                     // ★ 網路打卡 API：維持 15 秒防抖節流，避免短時間頻繁開關螢幕造成伺服器負載
                     val now = System.currentTimeMillis()
                     if (now - lastUnlockTime < THROTTLE_MS) {
                         Log.d(TAG, "⏱️ 預警鬧鐘已向後推延！但網路打卡處於節流冷卻期內（${(now - lastUnlockTime) / 1000}s < 15s），略過重複 API 打卡")
+                        GuardianAuditLogger.record(
+                            applicationContext,
+                            "API_THROTTLED",
+                            "冷卻期中 (${(now - lastUnlockTime) / 1000}s < 15s)，鬧鐘已推延，略過重複心跳 API"
+                        )
                         return
                     }
                     lastUnlockTime = now
