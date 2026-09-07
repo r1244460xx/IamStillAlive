@@ -109,28 +109,22 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         // ==========================================
-        // 重整打卡紀錄：先刪除所有舊紀錄，並寫入當下唯一的「系統初始化」第一筆紀錄
+        // 初始化打卡紀錄：僅在完全無任何打卡紀錄時寫入第一筆初始紀錄
+        // 避免生產或容器重啟時沖掉長者的真實打卡歷史
         // ==========================================
-        List<LoginRecord> oldRecords = loginRecordRepository.findByUserId(TEST_USER_ID);
-        if (!oldRecords.isEmpty()) {
-            loginRecordRepository.deleteAll(oldRecords);
-            log.info("🧹 [DataInitializer] 已清理測試帳號歷史打卡紀錄共 {} 筆", oldRecords.size());
+        List<LoginRecord> records = loginRecordRepository.findByUserId(targetUser.getId());
+        if (records.isEmpty()) {
+            LoginRecord initialRecord = LoginRecord.builder()
+                    .user(targetUser)
+                    .loginTime(now)
+                    .deviceInfo("系統初始化")
+                    .networkType("SystemInit")
+                    .remark("系統初始化預設測試帳號")
+                    .build();
+            loginRecordRepository.save(initialRecord);
+            log.info("🌱 [DataInitializer] 測試帳號打卡紀錄為空，已建立「系統初始化」第一筆紀錄 (時間: {})", now);
+        } else {
+            log.info("ℹ️ [DataInitializer] 測試帳號已有 {} 筆打卡紀錄，保留既有歷史不予清除", records.size());
         }
-
-        LoginRecord initialRecord = LoginRecord.builder()
-                .user(targetUser)
-                .loginTime(now)
-                .deviceInfo("系統初始化")
-                .networkType("SystemInit")
-                .remark("系統初始化預設測試帳號")
-                .build();
-        loginRecordRepository.save(initialRecord);
-
-        // 同步校準 User 的 lastActiveAt 與 safetyStatus 為初始 SAFE
-        targetUser.setLastActiveAt(now);
-        targetUser.setSafetyStatus(SafetyStatus.SAFE);
-        userRepository.save(targetUser);
-
-        log.info("🌱 [DataInitializer] 測試帳號打卡紀錄已重整為當下唯一的「系統初始化」紀錄 (時間: {})", now);
     }
 }
