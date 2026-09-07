@@ -197,13 +197,16 @@ fun HomeScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 4. 無感守護狀態卡片 (Accessibility & Battery Optimization)
+            // 4. 無感守護狀態卡片 (Accessibility, AutoStart & Battery Optimization)
             val context = androidx.compose.ui.platform.LocalContext.current
             var isAccEnabled by androidx.compose.runtime.remember {
                 androidx.compose.runtime.mutableStateOf(com.imsa.app.util.GuardianPermissionHelper.isAccessibilityServiceEnabled(context))
             }
             var isBatteryExempt by androidx.compose.runtime.remember {
                 androidx.compose.runtime.mutableStateOf(com.imsa.app.util.GuardianPermissionHelper.isIgnoringBatteryOptimizations(context))
+            }
+            var isAutoStartEnabled by androidx.compose.runtime.remember {
+                androidx.compose.runtime.mutableStateOf(com.imsa.app.util.GuardianPermissionHelper.isAutoStartEnabled(context))
             }
 
             val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -212,6 +215,7 @@ fun HomeScreen(
                     if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                         isAccEnabled = com.imsa.app.util.GuardianPermissionHelper.isAccessibilityServiceEnabled(context)
                         isBatteryExempt = com.imsa.app.util.GuardianPermissionHelper.isIgnoringBatteryOptimizations(context)
+                        isAutoStartEnabled = com.imsa.app.util.GuardianPermissionHelper.isAutoStartEnabled(context)
                         onRefresh()
                     }
                 }
@@ -227,6 +231,7 @@ fun HomeScreen(
                 colors = CardDefaults.cardColors(containerColor = Slate100)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
+                    // 項目 1: 無障礙心跳守護
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -268,6 +273,65 @@ fun HomeScreen(
 
                     Spacer(modifier = Modifier.height(4.dp))
 
+                    // 項目 2: 自啟動 / 後台啟動
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = when (isAutoStartEnabled) {
+                                    true -> Icons.Default.CheckCircle
+                                    false -> Icons.Default.Info
+                                    null -> Icons.Default.Info
+                                },
+                                contentDescription = null,
+                                tint = when (isAutoStartEnabled) {
+                                    true -> PrimaryGreenDark
+                                    false -> AlertRed
+                                    null -> Slate500
+                                },
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("自啟動 / 後台啟動 (防殺常駐)", fontSize = 12.sp, color = Slate700)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = when (isAutoStartEnabled) {
+                                    true -> "已開啟"
+                                    false -> "未開啟"
+                                    null -> "前往確認"
+                                },
+                                fontSize = 11.sp,
+                                color = when (isAutoStartEnabled) {
+                                    true -> PrimaryGreenDark
+                                    false -> AlertRed
+                                    null -> Slate500
+                                },
+                                fontWeight = if (isAutoStartEnabled == true) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            TextButton(
+                                onClick = {
+                                    com.imsa.app.util.GuardianPermissionHelper.openAutoStartSettings(context)
+                                },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text(
+                                    text = if (isAutoStartEnabled == true) "前往設定 ➔" else "前往開啟 ➔",
+                                    fontSize = 11.sp,
+                                    color = AccentBlue
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // 項目 3: 電池最佳化豁免
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -281,7 +345,7 @@ fun HomeScreen(
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("電池最佳化豁免 (抗殺進程)", fontSize = 12.sp, color = Slate700)
+                            Text("電池最佳化豁免 (省電策略無限制)", fontSize = 12.sp, color = Slate700)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
