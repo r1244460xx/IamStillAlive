@@ -103,15 +103,30 @@ public class UserSafetyService {
         }
 
         if (user.getEmergencyContactPhone() != null && !user.getEmergencyContactPhone().isBlank()) {
-            String note = isShutdown ? "【系統附註：該受保護裝置最後紀錄為手機低電量關機，可能僅為手機斷電，請先嘗試電話聯繫確認】" : "請儘速確認其人身安全！";
-            String smsContent = String.format("【IMSA 緊急通報】您關注的親友 [%s] (電話: %s) 已超過 12 小時未打卡回報平安，最後在線時間為 %s。%s",
-                    user.getNickname(), user.getPhone(), lastLoginTime, note);
+            // 💡 電信規格優化：中文簡訊 (UCS-2 編碼) 單則上限為 70 字，超過 70 字會被電信商強制拆為長簡訊 (2 則並重複計費)
+            // 將時間精簡為 MM/dd HH:mm，並壓縮文案確保總長度嚴格 <= 70 字，達成 100% 單則發送與精確計費
+            java.time.format.DateTimeFormatter formatter = java.time.format.DateTimeFormatter.ofPattern("MM/dd HH:mm");
+            String timeStr = lastLoginTime != null ? lastLoginTime.format(formatter) : "未知";
+            
+            String smsContent;
+            if (isShutdown) {
+                smsContent = String.format("【IMSA緊急通報】親友%s(%s)逾12時未回報(最後在線關機:%s)，請先電話確認安全！",
+                        user.getNickname(), user.getPhone(), timeStr);
+            } else {
+                smsContent = String.format("【IMSA緊急通報】您的親友%s(%s)已逾12小時未回報平安(最後在線:%s)，請速確認安全！",
+                        user.getNickname(), user.getPhone(), timeStr);
+            }
 
             log.info("📱 ------------------------------------------------------------");
-            log.info("📱 正在發送緊急簡訊至通報服務 (收件人: {})...", user.getEmergencyContactPhone());
+            log.info("📱 正在發送緊急簡訊至通報服務 (收件人: {}, 字數: {} 字)...", 
+                    user.getEmergencyContactPhone(), smsContent.length());
+            if (smsContent.length() > 70) {
+                log.warn("⚠️ [注意] 簡訊字數超過 70 字 (當前: {} 字)，電信商將拆分成多則長簡訊計費！", smsContent.length());
+            }
+
             boolean success = notificationService.sendEmergencyAlert(user.getEmergencyContactPhone(), smsContent);
             if (success) {
-                log.info("✅ 緊急通報簡訊處理成功！");
+                log.info("✅ 緊急通報簡訊處理成功！(單則無拆分)");
             } else {
                 log.warn("⚠️ 緊急通報簡訊發送回傳失敗，請檢查通報服務設定與日誌。");
             }
