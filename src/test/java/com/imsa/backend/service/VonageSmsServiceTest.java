@@ -16,7 +16,7 @@ class VonageSmsServiceTest {
     @BeforeEach
     void setUp() {
         vonageProperties = new VonageProperties();
-        vonageProperties.setApiKey("c6c8a722");
+        vonageProperties.setApiKey("DUMMY_KEY");
         vonageProperties.setApiSecret("DUMMY_SECRET");
         vonageProperties.setFrom("Vonage APIs");
         vonageProperties.setDryRun(true);

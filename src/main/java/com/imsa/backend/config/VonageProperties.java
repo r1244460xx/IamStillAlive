@@ -10,9 +10,9 @@ import org.springframework.stereotype.Component;
 public class VonageProperties {
 
     /**
-     * Vonage (Nexmo) API Key (ex: c6c8a722)
+     * Vonage (Nexmo) API Key
      */
-    private String apiKey = "c6c8a722";
+    private String apiKey;
 
     /**
      * Vonage API Secret
