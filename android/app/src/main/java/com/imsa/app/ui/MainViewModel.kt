@@ -180,7 +180,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 } else {
                     val rawErr = resp.errorBody()?.string()
                     val parsedMsg = parseError(rawErr, "註冊失敗 (${resp.code()})")
-                    val isConflict = resp.code() == 400 && (parsedMsg.contains("已註冊") || parsedMsg.contains("電話") || parsedMsg.contains("手機"))
+                    val isConflict = (resp.code() == 400 || resp.code() == 409) && 
+                            (parsedMsg.contains("已註冊") || parsedMsg.contains("電話") || parsedMsg.contains("手機") || parsedMsg.contains("重複") || parsedMsg.contains("唯一"))
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
                         message = parsedMsg,
