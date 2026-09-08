@@ -245,19 +245,19 @@ object HeartbeatSyncManager {
             }
 
             val finalNetworkType = customNetworkType ?: if (isInstantRetry) {
-                if (pending?.networkType == "DeviceShutdown") "DeviceShutdown" else "NetworkRestoredInstant"
+                if (pending?.networkType == "DeviceShutdown") "DeviceShutdown" else "OfflineBufferedSync"
             } else if (checkInTimestamp == null) {
                 "ScreenUnlock"
             } else {
-                pending?.networkType ?: "OfflineBackoffRetry"
+                if (pending?.networkType == "DeviceShutdown") "DeviceShutdown" else "OfflineBufferedSync"
             }
 
             val finalRemark = customRemark ?: if (isInstantRetry) {
-                if (pending?.networkType == "DeviceShutdown") "手機關機補傳 (連網瞬時補傳)" else "螢幕解鎖自動報平安 (連網瞬時補傳)"
+                if (pending?.networkType == "DeviceShutdown") "手機關機前自動報平安 (連網補傳)" else "斷線期間最近一次解鎖 (連線恢復補報平安)"
             } else if (checkInTimestamp == null) {
                 "螢幕解鎖自動報平安"
             } else {
-                pending?.remark ?: "螢幕解鎖自動報平安 (離線退避補傳)"
+                if (pending?.networkType == "DeviceShutdown") "手機關機前自動報平安 (連網補傳)" else "斷線期間最近一次解鎖 (連線恢復補報平安)"
             }
 
             val tagPrefix = if (customNetworkType != null) "🔌 [$customNetworkType]" else if (isInstantRetry) "⚡ [瞬時重試]" else if (checkInTimestamp == null) "📱 [解鎖即時]" else "⏱️ [退避重試]"
