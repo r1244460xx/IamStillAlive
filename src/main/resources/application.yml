@@ -30,5 +30,6 @@ vonage:
   from: ${VONAGE_FROM:Vonage APIs}
   dry-run: ${VONAGE_DRY_RUN:true}
 
-
-
+logging:
+  level:
+    com.imsa.backend: DEBUG
