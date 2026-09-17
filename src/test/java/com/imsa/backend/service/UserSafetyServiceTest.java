@@ -1,9 +1,12 @@
 package com.imsa.backend.service;
 
+import com.imsa.backend.entity.AlertRecord;
 import com.imsa.backend.entity.User;
+import com.imsa.backend.entity.enums.AlertStatus;
 import com.imsa.backend.entity.enums.Gender;
 import com.imsa.backend.entity.enums.SafetyStatus;
 import com.imsa.backend.entity.enums.UserStatus;
+import com.imsa.backend.repository.AlertRecordRepository;
 import com.imsa.backend.repository.LoginRecordRepository;
 import com.imsa.backend.repository.UserRepository;
 import com.imsa.backend.service.notification.NotificationService;
@@ -16,9 +19,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -42,6 +48,9 @@ class UserSafetyServiceTest {
     @Autowired
     private LoginRecordRepository loginRecordRepository;
 
+    @Autowired
+    private AlertRecordRepository alertRecordRepository;
+
     @MockitoBean
     private NotificationService notificationService;
 
@@ -49,6 +58,7 @@ class UserSafetyServiceTest {
 
     @BeforeEach
     void setUp() {
+        alertRecordRepository.deleteAll();
         loginRecordRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -71,8 +81,8 @@ class UserSafetyServiceTest {
     }
 
     @Test
-    @DisplayName("驗證當使用者超過 12 小時未打卡時，安全檢測能觸發 NotificationService 發送緊急通報並更新狀態為 ALERTED")
-    void testCheckActiveUsersSafetyTriggersNotification() {
+    @DisplayName("驗證當使用者超過 12 小時未打卡時，安全檢測能觸發發送緊急通報、更新狀態為 ALERTED，並成功寫入 alert_records 狀態為 SMS_SENT")
+    void testCheckActiveUsersSafetyTriggersNotificationAndRecordsAlert() {
         userSafetyService.checkActiveUsersSafety();
 
         // 驗證 notificationService 有被呼叫，且收件人為緊急聯絡人電話
@@ -85,8 +95,33 @@ class UserSafetyServiceTest {
         User updatedUser = userRepository.findById(overdueUser.getId()).orElseThrow();
         assertEquals(SafetyStatus.ALERTED, updatedUser.getSafetyStatus(), "逾期使用者狀態應被更新為 ALERTED");
 
+        // 驗證 alert_records 資料表記錄
+        List<AlertRecord> records = alertRecordRepository.findAll();
+        assertEquals(1, records.size(), "應有一筆告警紀錄");
+        AlertRecord record = records.get(0);
+        assertEquals(AlertStatus.SMS_SENT, record.getStatus(), "簡訊發送成功後狀態應更新為 SMS_SENT");
+        assertEquals("0909280630", record.getEmergencyContactPhone());
+        assertTrue(record.getMessageContent().contains("逾期守護對象"));
+        assertNotNull(record.getSentAt(), "應記錄 sentAt 發送時間戳");
+        assertTrue(record.getHoursOverdue() >= 12, "逾期小時數應 >= 12");
+
         // 再次執行安全檢測，因狀態已為 ALERTED，不應重複發送通報（CAS 防護與冪等性）
         userSafetyService.checkActiveUsersSafety();
         verify(notificationService, times(1)).sendEmergencyAlert(anyString(), anyString());
+        assertEquals(1, alertRecordRepository.count(), "不應產生重複之告警紀錄");
+    }
+
+    @Test
+    @DisplayName("驗證簡訊發送失敗時，alert_records 狀態會正確更新為 SMS_FAILED 並記錄錯誤訊息")
+    void testCheckActiveUsersSafetyWhenSmsFails() {
+        when(notificationService.sendEmergencyAlert(anyString(), anyString())).thenReturn(false);
+
+        userSafetyService.checkActiveUsersSafety();
+
+        List<AlertRecord> records = alertRecordRepository.findAll();
+        assertEquals(1, records.size());
+        AlertRecord record = records.get(0);
+        assertEquals(AlertStatus.SMS_FAILED, record.getStatus(), "簡訊發送失敗後狀態應更新為 SMS_FAILED");
+        assertNotNull(record.getErrorMessage(), "應記錄失敗訊息");
     }
 }
