@@ -124,4 +124,19 @@ class UserSafetyServiceTest {
         assertEquals(AlertStatus.SMS_FAILED, record.getStatus(), "簡訊發送失敗後狀態應更新為 SMS_FAILED");
         assertNotNull(record.getErrorMessage(), "應記錄失敗訊息");
     }
+
+    @Test
+    @DisplayName("驗證當發送簡訊拋出非預期例外時，先前的 INSERT 絕不被 Rollback，且能成功更新狀態為 SMS_FAILED")
+    void testCheckActiveUsersSafetyWhenSmsThrowsExceptionDoesNotRollbackInsert() {
+        when(notificationService.sendEmergencyAlert(anyString(), anyString()))
+                .thenThrow(new RuntimeException("Simulated Vonage Network Timeout Error"));
+
+        userSafetyService.checkActiveUsersSafety();
+
+        List<AlertRecord> records = alertRecordRepository.findAll();
+        assertEquals(1, records.size(), "先前的 INSERT 紀錄必須被保留在資料庫中，不可被例外 Rollback！");
+        AlertRecord record = records.get(0);
+        assertEquals(AlertStatus.SMS_FAILED, record.getStatus(), "狀態應被成功更新為 SMS_FAILED");
+        assertTrue(record.getErrorMessage().contains("Simulated Vonage Network Timeout Error"), "錯誤訊息應記錄異常細節");
+    }
 }
