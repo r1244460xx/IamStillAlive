@@ -371,6 +371,7 @@ fun HomeScreen(
                 colors = CardDefaults.cardColors(containerColor = Slate100)
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
+                    // 項目 1: 無障礙心跳守護
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -388,25 +389,31 @@ fun HomeScreen(
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = if (isAccEnabled) "已啟用" else "未授權",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isAccEnabled) PrimaryGreenDark else AlertRed
+                                text = if (isAccEnabled) "已常駐" else "未開啟",
+                                fontSize = 11.sp,
+                                color = if (isAccEnabled) PrimaryGreenDark else AlertRed,
+                                fontWeight = if (isAccEnabled) FontWeight.Bold else FontWeight.Normal
                             )
-                            if (!isAccEnabled) {
-                                Spacer(modifier = Modifier.width(4.dp))
-                                TextButton(
-                                    onClick = { com.imsa.app.util.GuardianPermissionHelper.openAccessibilitySettings(context) },
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text("去開啟 →", fontSize = 12.sp, color = AlertRed, fontWeight = FontWeight.Bold)
-                                }
+                            Spacer(modifier = Modifier.width(2.dp))
+                            TextButton(
+                                onClick = {
+                                    com.imsa.app.util.GuardianPermissionHelper.openAccessibilitySettings(context)
+                                },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text(
+                                    text = if (isAccEnabled) "前往設定 ➔" else "前往開啟 ➔",
+                                    fontSize = 11.sp,
+                                    color = AccentBlue
+                                )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
+                    // 項目 2: 自啟動 / 後台啟動
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -414,29 +421,96 @@ fun HomeScreen(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = if (isBatteryExempt) Icons.Default.CheckCircle else Icons.Default.BatteryAlert,
+                                imageVector = when (isAutoStartEnabled) {
+                                    true -> Icons.Default.CheckCircle
+                                    false -> Icons.Default.Info
+                                    null -> Icons.Default.Info
+                                },
                                 contentDescription = null,
-                                tint = if (isBatteryExempt) PrimaryGreenDark else WarningYellowDark,
+                                tint = when (isAutoStartEnabled) {
+                                    true -> PrimaryGreenDark
+                                    false -> AlertRed
+                                    null -> Slate500
+                                },
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("電池最佳化白名單 (背景不被殺)", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Slate900)
+                            Text("自啟動 / 後台啟動 (防殺常駐)", fontSize = 12.sp, color = Slate700)
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = if (isBatteryExempt) "已放行" else "未設定",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isBatteryExempt) PrimaryGreenDark else WarningYellowDark
+                                text = when (isAutoStartEnabled) {
+                                    true -> "已開啟"
+                                    false -> "未開啟"
+                                    null -> "前往確認"
+                                },
+                                fontSize = 11.sp,
+                                color = when (isAutoStartEnabled) {
+                                    true -> PrimaryGreenDark
+                                    false -> AlertRed
+                                    null -> Slate500
+                                },
+                                fontWeight = if (isAutoStartEnabled == true) FontWeight.Bold else FontWeight.Normal
                             )
-                            if (!isBatteryExempt) {
-                                Spacer(modifier = Modifier.width(4.dp))
-                                TextButton(
-                                    onClick = { com.imsa.app.util.GuardianPermissionHelper.requestIgnoreBatteryOptimizations(context) },
-                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text("去放行 →", fontSize = 12.sp, color = WarningYellowDark, fontWeight = FontWeight.Bold)
-                                }
+                            Spacer(modifier = Modifier.width(2.dp))
+                            TextButton(
+                                onClick = {
+                                    com.imsa.app.util.GuardianPermissionHelper.openAutoStartSettings(context)
+                                },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text(
+                                    text = if (isAutoStartEnabled == true) "前往設定 ➔" else "前往開啟 ➔",
+                                    fontSize = 11.sp,
+                                    color = AccentBlue
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // 項目 3: 電池最佳化豁免
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = if (isBatteryExempt) Icons.Default.CheckCircle else Icons.Default.Info,
+                                contentDescription = null,
+                                tint = if (isBatteryExempt) PrimaryGreenDark else Slate500,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("電池最佳化豁免 (省電策略無限制)", fontSize = 12.sp, color = Slate700)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (isBatteryExempt) "已豁免" else "未豁免",
+                                fontSize = 11.sp,
+                                color = if (isBatteryExempt) PrimaryGreenDark else Slate500,
+                                fontWeight = if (isBatteryExempt) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            TextButton(
+                                onClick = {
+                                    if (isBatteryExempt) {
+                                        com.imsa.app.util.GuardianPermissionHelper.openBatteryOptimizationSettings(context)
+                                    } else {
+                                        com.imsa.app.util.GuardianPermissionHelper.requestIgnoreBatteryOptimizations(context)
+                                    }
+                                },
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                                modifier = Modifier.height(28.dp)
+                            ) {
+                                Text(
+                                    text = if (isBatteryExempt) "前往設定 ➔" else "設定豁免 ➔",
+                                    fontSize = 11.sp,
+                                    color = AccentBlue
+                                )
                             }
                         }
                     }
