@@ -22,6 +22,11 @@ class SessionManager(context: Context) {
         if (current.isNullOrBlank() || (!current.equals(HARDCODED_TEST_USER_ID) && (currentPhone == null || currentPhone == HARDCODED_TEST_PHONE))) {
             initDefaultTestUser()
         }
+        // 若儲存的伺服器位址仍為舊內網/本機 IP，自動切換至遠端 VM
+        val currentServer = prefs.getString("server_url", null)
+        if (currentServer.isNullOrBlank() || currentServer.contains("192.168.") || currentServer.contains("10.0.2.2") || currentServer.contains("localhost") || currentServer.contains("127.0.0.1")) {
+            prefs.edit().putString("server_url", "http://64.181.242.49:8080/").apply()
+        }
     }
 
     fun initDefaultTestUser() {
@@ -59,7 +64,7 @@ class SessionManager(context: Context) {
         set(value) = prefs.edit().putString("next_deadline", value).apply()
 
     var serverUrl: String
-        get() = prefs.getString("server_url", "http://192.168.0.137:8080/") ?: "http://192.168.0.137:8080/"
+        get() = prefs.getString("server_url", "http://64.181.242.49:8080/") ?: "http://64.181.242.49:8080/"
         set(value) = prefs.edit().putString("server_url", value).apply()
 
     var isDisconnected: Boolean

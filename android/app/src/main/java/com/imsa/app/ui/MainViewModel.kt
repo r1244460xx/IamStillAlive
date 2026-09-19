@@ -28,7 +28,7 @@ data class MainUiState(
     val isError: Boolean = false,
     val errorMessage: String? = null,
     val isPhoneConflict: Boolean = false,
-    val serverUrl: String = "http://192.168.0.137:8080/"
+    val serverUrl: String = "http://64.181.242.49:8080/"
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {

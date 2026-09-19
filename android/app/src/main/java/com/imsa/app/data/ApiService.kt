@@ -80,7 +80,7 @@ interface ImsaApiService {
     suspend fun deleteLoginRecord(@Path("id") id: String): Response<Unit>
 
     companion object {
-        const val DEFAULT_BASE_URL = "http://192.168.0.137:8080/"
+        const val DEFAULT_BASE_URL = "http://64.181.242.49:8080/"
 
         fun create(baseUrl: String = DEFAULT_BASE_URL): ImsaApiService {
             val validUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
