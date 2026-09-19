@@ -69,11 +69,12 @@ class SessionManager(context: Context) {
     fun isLoggedIn(): Boolean = !userId.isNullOrBlank()
 
     fun saveUser(user: UserResponse) {
+        val firstContactPhone = user.emergencyContacts.firstOrNull()?.phone
         prefs.edit()
             .putString("user_id", user.id)
             .putString("nickname", user.nickname)
             .putString("phone", user.phone)
-            .putString("emergency_contact", user.emergencyContactPhone)
+            .putString("emergency_contact", firstContactPhone)
             .putString("safety_status", user.safetyStatus)
             .apply()
     }

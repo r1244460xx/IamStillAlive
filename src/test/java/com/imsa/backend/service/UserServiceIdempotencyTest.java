@@ -6,6 +6,7 @@ import com.imsa.backend.entity.User;
 import com.imsa.backend.entity.enums.Gender;
 import com.imsa.backend.entity.enums.SafetyStatus;
 import com.imsa.backend.entity.enums.UserStatus;
+import com.imsa.backend.repository.EmergencyContactRepository;
 import com.imsa.backend.repository.LoginRecordRepository;
 import com.imsa.backend.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,8 +14,6 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -40,11 +39,15 @@ class UserServiceIdempotencyTest {
     @Autowired
     private LoginRecordRepository loginRecordRepository;
 
+    @Autowired
+    private EmergencyContactRepository emergencyContactRepository;
+
     private User testUser;
 
     @BeforeEach
     void setUp() {
         loginRecordRepository.deleteAll();
+        emergencyContactRepository.deleteAll();
         userRepository.deleteAll();
 
         testUser = User.builder()

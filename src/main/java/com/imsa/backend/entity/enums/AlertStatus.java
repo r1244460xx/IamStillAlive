@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 public enum AlertStatus {
     PENDING_SMS("準備發出簡訊"),
     SMS_SENT("告警簡訊已寄出"),
+    PARTIALLY_SENT("部分簡訊已寄出"),
     SMS_FAILED("告警簡訊發送失敗"),
     NO_CONTACT_PHONE("未設定緊急聯絡人");
 

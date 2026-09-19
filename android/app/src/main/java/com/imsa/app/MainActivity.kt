@@ -13,7 +13,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import com.imsa.app.ui.MainViewModel
-import com.imsa.app.ui.screens.ChangeEmergencyContactScreen
 import com.imsa.app.ui.screens.ChangePasswordScreen
 import com.imsa.app.ui.screens.HomeScreen
 import com.imsa.app.ui.screens.LoginScreen
@@ -27,8 +26,7 @@ enum class AuthScreen {
 
 enum class MainScreen {
     HOME,
-    CHANGE_PASSWORD,
-    CHANGE_EMERGENCY_CONTACT
+    CHANGE_PASSWORD
 }
 
 class MainActivity : ComponentActivity() {
@@ -70,9 +68,14 @@ class MainActivity : ComponentActivity() {
                                             viewModel.clearError()
                                             currentMainScreen = MainScreen.CHANGE_PASSWORD
                                         },
-                                        onNavigateToChangeEmergencyContact = {
-                                            viewModel.clearError()
-                                            currentMainScreen = MainScreen.CHANGE_EMERGENCY_CONTACT
+                                        onAddEmergencyContact = { name, phone ->
+                                            viewModel.addEmergencyContact(name, phone)
+                                        },
+                                        onUpdateEmergencyContact = { contactId, name, phone ->
+                                            viewModel.updateEmergencyContact(contactId, name, phone)
+                                        },
+                                        onDeleteEmergencyContact = { contactId ->
+                                            viewModel.deleteEmergencyContact(contactId)
                                         },
                                         onLogout = {
                                             viewModel.logout()
@@ -86,21 +89,6 @@ class MainActivity : ComponentActivity() {
                                         state = state,
                                         onChangePassword = { oldPass, newPass ->
                                             viewModel.changePassword(oldPass, newPass) {
-                                                currentMainScreen = MainScreen.HOME
-                                            }
-                                        },
-                                        onNavigateBack = {
-                                            viewModel.clearError()
-                                            currentMainScreen = MainScreen.HOME
-                                        },
-                                        onClearError = { viewModel.clearError() }
-                                    )
-                                }
-                                MainScreen.CHANGE_EMERGENCY_CONTACT -> {
-                                    ChangeEmergencyContactScreen(
-                                        state = state,
-                                        onUpdateEmergencyContact = { newPhone ->
-                                            viewModel.updateEmergencyContact(newPhone) {
                                                 currentMainScreen = MainScreen.HOME
                                             }
                                         },
@@ -131,8 +119,8 @@ class MainActivity : ComponentActivity() {
                                 AuthScreen.REGISTER -> {
                                     RegisterScreen(
                                         state = state,
-                                        onRegister = { phone, pass, nickname, emergency ->
-                                            viewModel.register(phone, pass, nickname, emergency)
+                                        onRegister = { phone, pass, nickname, emergencyName, emergencyPhone ->
+                                            viewModel.register(phone, pass, nickname, emergencyName, emergencyPhone)
                                         },
                                         onNavigateToLogin = {
                                             viewModel.clearError()

@@ -59,15 +59,6 @@ public class UserController {
         return ResponseEntity.ok(Map.of("message", "密碼已成功變更"));
     }
 
-    @PutMapping("/{id}/emergency-contact")
-    public ResponseEntity<UserResponse> updateEmergencyContact(
-            @PathVariable UUID id,
-            @RequestParam(required = false) String phone,
-            @Valid @RequestBody UserEmergencyContactUpdateRequest request) {
-        UserResponse response = userService.updateEmergencyContact(id, phone, request.getEmergencyContactPhone());
-        return ResponseEntity.ok(response);
-    }
-
     @PostMapping("/{id}/check-in")
     public ResponseEntity<UserCheckInResponse> checkIn(
             @PathVariable UUID id,

@@ -6,11 +6,12 @@ data class UserRegisterRequest(
     val phone: String,
     val password: String,
     val nickname: String,
-    val gender: String, // MALE, FEMALE, OTHER
-    val birthdate: String, // yyyy-MM-dd
+    val gender: String = "OTHER", // MALE, FEMALE, OTHER
+    val birthdate: String = "1995-01-01", // yyyy-MM-dd
     val email: String? = null,
     val nationalId: String? = null,
-    val emergencyContactPhone: String? = null
+    val emergencyContactName: String,
+    val emergencyContactPhone: String
 )
 
 data class UserLoginRequest(
@@ -18,12 +19,26 @@ data class UserLoginRequest(
     val password: String
 )
 
+data class EmergencyContactRequest(
+    val name: String,
+    val phone: String
+)
+
+data class EmergencyContactResponse(
+    val id: String,
+    val userId: String? = null,
+    val name: String,
+    val phone: String,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
+)
+
 data class UserResponse(
     val id: String,
     val phone: String,
     val email: String?,
     val nationalId: String?,
-    val emergencyContactPhone: String?,
+    val emergencyContacts: List<EmergencyContactResponse> = emptyList(),
     val nickname: String,
     val gender: String,
     val birthdate: String,
@@ -39,8 +54,7 @@ data class UserUpdateRequest(
     val gender: String, // MALE, FEMALE, OTHER
     val birthdate: String, // yyyy-MM-dd
     val email: String? = null,
-    val nationalId: String? = null,
-    val emergencyContactPhone: String? = null
+    val nationalId: String? = null
 )
 
 data class UserCheckInRequest(
@@ -84,10 +98,6 @@ data class LoginRecordResponse(
 data class UserPasswordChangeRequest(
     val oldPassword: String,
     val newPassword: String
-)
-
-data class UserEmergencyContactUpdateRequest(
-    val emergencyContactPhone: String
 )
 
 data class MessageResponse(

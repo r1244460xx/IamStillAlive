@@ -1,6 +1,5 @@
 package com.imsa.backend.entity;
 
-import com.imsa.backend.entity.enums.AlertStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -12,12 +11,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "alert_records")
+@Table(name = "emergency_contacts", uniqueConstraints = {
+    @UniqueConstraint(columnNames = {"user_id", "phone"})
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AlertRecord {
+public class EmergencyContact {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -29,33 +30,11 @@ public class AlertRecord {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private User user;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 50)
-    private AlertStatus status;
+    @Column(nullable = false, length = 50)
+    private String name;
 
-    @Column(name = "trigger_time", nullable = false)
-    private LocalDateTime triggerTime;
-
-    @Column(name = "last_active_at")
-    private LocalDateTime lastActiveAt;
-
-    @Column(name = "hours_overdue")
-    private Long hoursOverdue;
-
-    @Column(name = "total_contacts")
-    @Builder.Default
-    private Integer totalContacts = 0;
-
-    @Column(name = "success_count")
-    @Builder.Default
-    private Integer successCount = 0;
-
-    @Column(name = "failed_count")
-    @Builder.Default
-    private Integer failedCount = 0;
-
-    @Column(name = "message_content", columnDefinition = "TEXT")
-    private String messageContent;
+    @Column(nullable = false, length = 20)
+    private String phone;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

@@ -11,6 +11,8 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -22,7 +24,8 @@ public class UserResponse {
     private String phone;
     private String email;
     private String nationalId;
-    private String emergencyContactPhone;
+    @Builder.Default
+    private List<EmergencyContactResponse> emergencyContacts = Collections.emptyList();
     private String nickname;
     private Gender gender;
     private LocalDate birthdate;
@@ -33,13 +36,17 @@ public class UserResponse {
     private LocalDateTime lastActiveAt;
 
     public static UserResponse fromEntity(User user) {
+        return fromEntity(user, Collections.emptyList());
+    }
+
+    public static UserResponse fromEntity(User user, List<EmergencyContactResponse> emergencyContacts) {
         if (user == null) return null;
         return UserResponse.builder()
                 .id(user.getId())
                 .phone(user.getPhone())
                 .email(user.getEmail())
                 .nationalId(user.getNationalId())
-                .emergencyContactPhone(user.getEmergencyContactPhone())
+                .emergencyContacts(emergencyContacts != null ? emergencyContacts : Collections.emptyList())
                 .nickname(user.getNickname())
                 .gender(user.getGender())
                 .birthdate(user.getBirthdate())

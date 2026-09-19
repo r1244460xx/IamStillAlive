@@ -20,6 +20,7 @@ data class MainUiState(
     val nickname: String = "",
     val phone: String = "",
     val emergencyContact: String? = null,
+    val emergencyContacts: List<EmergencyContactResponse> = emptyList(),
     val safetyStatus: String = "SAFE",
     val nextDeadline: String? = null,
     val recentRecords: List<LoginRecordResponse> = emptyList(),
@@ -64,7 +65,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isDisconnected = disconnected,
                     pendingCheckIn = session.getPendingCheckIn()
                 )
-                // 若由斷線轉為連線，自動刷新資料 (僅限於登入狀態)
                 if (wasDisconnected && !disconnected && session.isLoggedIn() && _uiState.value.isLoggedIn) {
                     refreshData()
                 }
@@ -109,7 +109,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         userId = user.id,
                         nickname = user.nickname,
                         phone = user.phone,
-                        emergencyContact = user.emergencyContactPhone,
+                        emergencyContact = user.emergencyContacts.firstOrNull()?.phone,
+                        emergencyContacts = user.emergencyContacts,
                         safetyStatus = user.safetyStatus,
                         message = "登入成功！歡迎回來，${user.nickname}。",
                         isError = false
@@ -140,6 +141,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         phone: String,
         pass: String,
         nickname: String,
+        emergencyName: String,
         emergencyPhone: String
     ) {
         viewModelScope.launch {
@@ -156,7 +158,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     nickname = nickname,
                     gender = "OTHER",
                     birthdate = "1995-01-01",
-                    emergencyContactPhone = emergencyPhone.ifBlank { null }
+                    emergencyContactName = emergencyName.trim(),
+                    emergencyContactPhone = emergencyPhone.trim()
                 )
                 val resp = api.register(req)
                 if (resp.isSuccessful && resp.body() != null) {
@@ -169,7 +172,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         userId = user.id,
                         nickname = user.nickname,
                         phone = user.phone,
-                        emergencyContact = user.emergencyContactPhone,
+                        emergencyContact = user.emergencyContacts.firstOrNull()?.phone,
+                        emergencyContacts = user.emergencyContacts,
                         safetyStatus = user.safetyStatus,
                         message = "註冊成功！守護已啟動。",
                         errorMessage = null,
@@ -201,7 +205,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-
     fun refreshData() {
         if (!session.isLoggedIn() || !_uiState.value.isLoggedIn) return
 
@@ -224,7 +227,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.value = _uiState.value.copy(
                         nickname = user.nickname,
                         phone = user.phone,
-                        emergencyContact = user.emergencyContactPhone,
+                        emergencyContact = user.emergencyContacts.firstOrNull()?.phone,
+                        emergencyContacts = user.emergencyContacts,
                         safetyStatus = user.safetyStatus
                     )
                     com.imsa.app.util.HeartbeatSyncManager.setDisconnected(false, getApplication())
@@ -233,11 +237,157 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
                     }
                 }
+                loadEmergencyContacts()
                 fetchHistory()
             } catch (e: Exception) {
                 if (session.isLoggedIn()) {
                     com.imsa.app.util.HeartbeatSyncManager.setDisconnected(true, getApplication())
                 }
+            }
+        }
+    }
+
+    fun loadEmergencyContacts() {
+        val currentUserId = _uiState.value.userId.ifBlank { session.userId.orEmpty() }
+        if (currentUserId.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                val resp = api.getEmergencyContacts(currentUserId)
+                if (resp.isSuccessful && resp.body() != null) {
+                    val contacts = resp.body()!!
+                    _uiState.value = _uiState.value.copy(
+                        emergencyContacts = contacts,
+                        emergencyContact = contacts.firstOrNull()?.phone
+                    )
+                }
+            } catch (e: Exception) {
+                // Ignore silent failure for background load
+            }
+        }
+    }
+
+    fun addEmergencyContact(
+        name: String,
+        phone: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        val currentUserId = _uiState.value.userId.ifBlank { session.userId.orEmpty() }
+        if (currentUserId.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, message = null, errorMessage = null, isError = false)
+            try {
+                val req = EmergencyContactRequest(name = name.trim(), phone = phone.trim())
+                val resp = api.addEmergencyContact(currentUserId, req)
+                if (resp.isSuccessful && resp.body() != null) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = "成功新增緊急聯絡人「${name.trim()}」！",
+                        isError = false
+                    )
+                    loadEmergencyContacts()
+                    onSuccess()
+                } else {
+                    val rawErr = resp.errorBody()?.string()
+                    val msg = parseError(rawErr, "新增失敗 (${resp.code()})")
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = msg,
+                        errorMessage = msg,
+                        isError = true
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    message = "連線失敗: ${e.localizedMessage}",
+                    errorMessage = "連線失敗: ${e.localizedMessage}",
+                    isError = true
+                )
+            }
+        }
+    }
+
+    fun updateEmergencyContact(
+        contactId: String,
+        name: String,
+        phone: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        val currentUserId = _uiState.value.userId.ifBlank { session.userId.orEmpty() }
+        if (currentUserId.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, message = null, errorMessage = null, isError = false)
+            try {
+                val req = EmergencyContactRequest(name = name.trim(), phone = phone.trim())
+                val resp = api.updateEmergencyContact(currentUserId, contactId, req)
+                if (resp.isSuccessful && resp.body() != null) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = "緊急聯絡人資料已更新！",
+                        isError = false
+                    )
+                    loadEmergencyContacts()
+                    onSuccess()
+                } else {
+                    val rawErr = resp.errorBody()?.string()
+                    val msg = parseError(rawErr, "更新失敗 (${resp.code()})")
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = msg,
+                        errorMessage = msg,
+                        isError = true
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    message = "連線失敗: ${e.localizedMessage}",
+                    errorMessage = "連線失敗: ${e.localizedMessage}",
+                    isError = true
+                )
+            }
+        }
+    }
+
+    fun deleteEmergencyContact(
+        contactId: String,
+        onSuccess: () -> Unit = {}
+    ) {
+        val currentUserId = _uiState.value.userId.ifBlank { session.userId.orEmpty() }
+        if (currentUserId.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, message = null, errorMessage = null, isError = false)
+            try {
+                val resp = api.deleteEmergencyContact(currentUserId, contactId)
+                if (resp.isSuccessful) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = "已成功刪除該緊急聯絡人",
+                        isError = false
+                    )
+                    loadEmergencyContacts()
+                    onSuccess()
+                } else {
+                    val rawErr = resp.errorBody()?.string()
+                    val msg = parseError(rawErr, "刪除失敗 (${resp.code()})")
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        message = msg,
+                        errorMessage = msg,
+                        isError = true
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    message = "連線失敗: ${e.localizedMessage}",
+                    errorMessage = "連線失敗: ${e.localizedMessage}",
+                    isError = true
+                )
             }
         }
     }
@@ -297,57 +447,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
-
-    fun updateEmergencyContact(
-        newPhone: String,
-        onSuccess: () -> Unit
-    ) {
-        val currentUserId = _uiState.value.userId.ifBlank { session.userId.orEmpty() }
-        val phone = session.phone
-        if (currentUserId.isBlank() && phone.isNullOrBlank()) return
-
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isLoading = true, message = null, errorMessage = null, isError = false)
-            try {
-                val req = UserEmergencyContactUpdateRequest(emergencyContactPhone = newPhone)
-                val resp = api.updateEmergencyContact(currentUserId, phone, req)
-                if (resp.isSuccessful && resp.body() != null) {
-                    val user = resp.body()!!
-                    if (session.userId != user.id) {
-                        session.userId = user.id
-                    }
-                    session.saveUser(user)
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        userId = user.id,
-                        nickname = user.nickname,
-                        phone = user.phone,
-                        emergencyContact = user.emergencyContactPhone,
-                        message = "緊急聯絡人電話已更新！",
-                        isError = false
-                    )
-                    onSuccess()
-                } else {
-                    val rawErr = resp.errorBody()?.string()
-                    val msg = parseError(rawErr, "更新失敗 (${resp.code()})")
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        message = msg,
-                        errorMessage = msg,
-                        isError = true
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    message = "連線失敗: ${e.localizedMessage}",
-                    errorMessage = "連線失敗: ${e.localizedMessage}",
-                    isError = true
-                )
-            }
-        }
-    }
-
 
     fun logout() {
         session.logout()

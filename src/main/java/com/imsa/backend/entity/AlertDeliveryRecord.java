@@ -12,12 +12,12 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "alert_records")
+@Table(name = "alert_delivery_records")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AlertRecord {
+public class AlertDeliveryRecord {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -25,37 +25,25 @@ public class AlertRecord {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(name = "alert_record_id", nullable = false)
     @OnDelete(action = OnDeleteAction.CASCADE)
-    private User user;
+    private AlertRecord alertRecord;
+
+    @Column(name = "contact_name", nullable = false, length = 50)
+    private String contactName;
+
+    @Column(name = "contact_phone", nullable = false, length = 20)
+    private String contactPhone;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 50)
     private AlertStatus status;
 
-    @Column(name = "trigger_time", nullable = false)
-    private LocalDateTime triggerTime;
+    @Column(name = "sent_at")
+    private LocalDateTime sentAt;
 
-    @Column(name = "last_active_at")
-    private LocalDateTime lastActiveAt;
-
-    @Column(name = "hours_overdue")
-    private Long hoursOverdue;
-
-    @Column(name = "total_contacts")
-    @Builder.Default
-    private Integer totalContacts = 0;
-
-    @Column(name = "success_count")
-    @Builder.Default
-    private Integer successCount = 0;
-
-    @Column(name = "failed_count")
-    @Builder.Default
-    private Integer failedCount = 0;
-
-    @Column(name = "message_content", columnDefinition = "TEXT")
-    private String messageContent;
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

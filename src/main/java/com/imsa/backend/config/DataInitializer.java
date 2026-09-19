@@ -1,10 +1,12 @@
 package com.imsa.backend.config;
 
+import com.imsa.backend.entity.EmergencyContact;
 import com.imsa.backend.entity.LoginRecord;
 import com.imsa.backend.entity.User;
 import com.imsa.backend.entity.enums.Gender;
 import com.imsa.backend.entity.enums.SafetyStatus;
 import com.imsa.backend.entity.enums.UserStatus;
+import com.imsa.backend.repository.EmergencyContactRepository;
 import com.imsa.backend.repository.LoginRecordRepository;
 import com.imsa.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -12,7 +14,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
@@ -27,6 +28,7 @@ import java.util.UUID;
 public class DataInitializer implements CommandLineRunner {
 
     private final UserRepository userRepository;
+    private final EmergencyContactRepository emergencyContactRepository;
     private final LoginRecordRepository loginRecordRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -34,6 +36,7 @@ public class DataInitializer implements CommandLineRunner {
     public static final String TEST_USER_PHONE = "0912345678";
     public static final String TEST_USER_PASSWORD = "pass123456";
     public static final String TEST_USER_NICKNAME = "測試者";
+    public static final String TEST_USER_EMERGENCY_NAME = "預設緊急聯絡人";
     public static final String TEST_USER_EMERGENCY = "0909280630";
 
     @Override
@@ -57,7 +60,6 @@ public class DataInitializer implements CommandLineRunner {
                     .nickname(TEST_USER_NICKNAME)
                     .gender(Gender.OTHER)
                     .birthdate(LocalDate.of(1995, 1, 1))
-                    .emergencyContactPhone(TEST_USER_EMERGENCY)
                     .status(UserStatus.ACTIVE)
                     .safetyStatus(SafetyStatus.SAFE)
                     .lastActiveAt(now)
@@ -81,11 +83,6 @@ public class DataInitializer implements CommandLineRunner {
                 modified = true;
             }
 
-            if (!TEST_USER_EMERGENCY.equals(targetUser.getEmergencyContactPhone())) {
-                targetUser.setEmergencyContactPhone(TEST_USER_EMERGENCY);
-                modified = true;
-            }
-
             // 檢查密碼是否依然符合預設密碼
             if (!passwordEncoder.matches(TEST_USER_PASSWORD, targetUser.getPasswordHash())) {
                 targetUser.setPasswordHash(passwordEncoder.encode(TEST_USER_PASSWORD));
@@ -106,6 +103,27 @@ public class DataInitializer implements CommandLineRunner {
                 log.info("✅ [DataInitializer] 測試帳號已存在且帳密完全符合共識 (ID: {}, 手機: {})", 
                         targetUser.getId(), targetUser.getPhone());
             }
+        }
+
+        // ==========================================
+        // 確保 emergency_contacts 內一定有 0909280630 (預設緊急聯絡人)
+        // ==========================================
+        Optional<EmergencyContact> contactOpt = emergencyContactRepository.findByUserIdAndPhone(targetUser.getId(), TEST_USER_EMERGENCY);
+        if (contactOpt.isEmpty()) {
+            EmergencyContact contact = EmergencyContact.builder()
+                    .user(targetUser)
+                    .name(TEST_USER_EMERGENCY_NAME)
+                    .phone(TEST_USER_EMERGENCY)
+                    .build();
+            emergencyContactRepository.save(contact);
+            log.info("🌱 [DataInitializer] 測試帳號緊急聯絡人不存在，已建立預設聯絡人：{} ({})", TEST_USER_EMERGENCY_NAME, TEST_USER_EMERGENCY);
+        } else {
+            EmergencyContact contact = contactOpt.get();
+            if (!TEST_USER_EMERGENCY_NAME.equals(contact.getName())) {
+                contact.setName(TEST_USER_EMERGENCY_NAME);
+                emergencyContactRepository.save(contact);
+            }
+            log.info("✅ [DataInitializer] 測試帳號預設緊急聯絡人已確認存在：{} ({})", contact.getName(), contact.getPhone());
         }
 
         // ==========================================

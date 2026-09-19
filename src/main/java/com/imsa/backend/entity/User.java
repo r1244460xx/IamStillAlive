@@ -40,9 +40,6 @@ public class User {
     @Column(name = "national_id", nullable = true)
     private String nationalId;
 
-    @Column(name = "emergency_contact_phone", nullable = true)
-    private String emergencyContactPhone;
-
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 

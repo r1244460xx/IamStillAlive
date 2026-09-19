@@ -8,10 +8,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Badge
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,14 +31,15 @@ import com.imsa.app.ui.theme.*
 @Composable
 fun RegisterScreen(
     state: MainUiState,
-    onRegister: (phone: String, pass: String, nickname: String, emergency: String) -> Unit,
+    onRegister: (phone: String, pass: String, nickname: String, emergencyName: String, emergencyPhone: String) -> Unit,
     onNavigateToLogin: () -> Unit,
     onClearError: () -> Unit = {}
 ) {
     var phone by remember { mutableStateOf("0912345678") }
     var password by remember { mutableStateOf("pass123456") }
     var nickname by remember { mutableStateOf("測試者") }
-    var emergencyContact by remember { mutableStateOf("0987654321") }
+    var emergencyName by remember { mutableStateOf("家屬") }
+    var emergencyPhone by remember { mutableStateOf("0987654321") }
 
     Column(
         modifier = Modifier
@@ -164,23 +167,58 @@ fun RegisterScreen(
             shape = RoundedCornerShape(12.dp)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        val isEmergencySameAsPhone = phone.isNotBlank() && emergencyContact.isNotBlank() && emergencyContact.trim() == phone.trim()
-        val phoneRegex = Regex("^09\\d{8}$")
-        val isEmergencyValidFormat = emergencyContact.isBlank() || phoneRegex.matches(emergencyContact.trim())
+        // 第一位緊急聯絡人區塊標題
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Shield, null, tint = PrimaryGreenDark, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "第一位緊急聯絡人 (逾期未報平安將發送簡訊)",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Slate700
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
-            value = emergencyContact,
-            onValueChange = { emergencyContact = it },
-            label = { Text("緊急聯絡人電話 (選填)") },
+            value = emergencyName,
+            onValueChange = {
+                emergencyName = it
+                if (state.isError) onClearError()
+            },
+            label = { Text("聯絡人稱呼 / 姓名 (例如: 爸爸、李先生)") },
+            leadingIcon = { Icon(Icons.Default.Badge, null) },
+            isError = emergencyName.isBlank(),
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp)
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val isEmergencySameAsPhone = phone.isNotBlank() && emergencyPhone.isNotBlank() && emergencyPhone.trim() == phone.trim()
+        val phoneRegex = Regex("^09\\d{8}$")
+        val isEmergencyValidFormat = phoneRegex.matches(emergencyPhone.trim())
+
+        OutlinedTextField(
+            value = emergencyPhone,
+            onValueChange = {
+                emergencyPhone = it
+                if (state.isError) onClearError()
+            },
+            label = { Text("聯絡人手機電話 (必填)") },
             placeholder = { Text("例如 0987654321") },
             leadingIcon = { Icon(Icons.Default.Phone, null) },
-            isError = isEmergencySameAsPhone || (!isEmergencyValidFormat && emergencyContact.isNotBlank()),
+            isError = isEmergencySameAsPhone || !isEmergencyValidFormat,
             supportingText = {
                 if (isEmergencySameAsPhone) {
                     Text("⚠️ 緊急聯絡人不可為本人手機號碼", color = AlertRed, fontSize = 12.sp)
-                } else if (emergencyContact.isNotBlank() && !isEmergencyValidFormat) {
+                } else if (!isEmergencyValidFormat && emergencyPhone.isNotBlank()) {
                     Text("⚠️ 請輸入 09 開頭之 10 碼台灣手機號碼", color = AlertRed, fontSize = 12.sp)
                 }
             },
@@ -191,14 +229,17 @@ fun RegisterScreen(
 
         Spacer(modifier = Modifier.height(28.dp))
 
+        val isFormValid = phone.isNotBlank() && password.isNotBlank() && nickname.isNotBlank() &&
+                emergencyName.isNotBlank() && isEmergencyValidFormat && !isEmergencySameAsPhone
+
         Button(
-            onClick = { onRegister(phone, password, nickname, emergencyContact) },
+            onClick = { onRegister(phone, password, nickname, emergencyName, emergencyPhone) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen),
-            enabled = !state.isLoading && !isEmergencySameAsPhone && isEmergencyValidFormat
+            enabled = !state.isLoading && isFormValid
         ) {
             if (state.isLoading) {
                 CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))

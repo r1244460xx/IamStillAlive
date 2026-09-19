@@ -1,10 +1,12 @@
 package com.imsa.backend.service;
 
 import com.imsa.backend.dto.*;
+import com.imsa.backend.entity.EmergencyContact;
 import com.imsa.backend.entity.LoginRecord;
 import com.imsa.backend.entity.User;
 import com.imsa.backend.entity.enums.SafetyStatus;
 import com.imsa.backend.entity.enums.UserStatus;
+import com.imsa.backend.repository.EmergencyContactRepository;
 import com.imsa.backend.repository.LoginRecordRepository;
 import com.imsa.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,8 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,8 +27,16 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final EmergencyContactRepository emergencyContactRepository;
     private final LoginRecordRepository loginRecordRepository;
     private final PasswordEncoder passwordEncoder;
+
+    private List<EmergencyContactResponse> getEmergencyContactResponses(UUID userId) {
+        if (userId == null) return List.of();
+        return emergencyContactRepository.findByUserIdOrderByCreatedAtAsc(userId).stream()
+                .map(EmergencyContactResponse::fromEntity)
+                .collect(Collectors.toList());
+    }
 
     @Transactional
     public UserResponse registerUser(UserRegisterRequest request) {
@@ -35,12 +47,17 @@ public class UserService {
             throw new IllegalArgumentException("該電話號碼已註冊");
         }
 
-        if (request.getEmergencyContactPhone() != null && !request.getEmergencyContactPhone().isBlank()) {
-            String cleanEmergency = request.getEmergencyContactPhone().trim();
-            request.setEmergencyContactPhone(cleanEmergency);
-            if (cleanEmergency.equals(cleanPhone)) {
-                throw new IllegalArgumentException("緊急聯絡人不可設定為本人之手機號碼");
-            }
+        String contactName = request.getEmergencyContactName() != null ? request.getEmergencyContactName().trim() : "";
+        String contactPhone = request.getEmergencyContactPhone() != null ? request.getEmergencyContactPhone().trim() : "";
+
+        if (contactName.isBlank()) {
+            throw new IllegalArgumentException("緊急聯絡人姓名不能為空");
+        }
+        if (contactPhone.isBlank()) {
+            throw new IllegalArgumentException("緊急聯絡人電話不能為空");
+        }
+        if (contactPhone.equals(cleanPhone)) {
+            throw new IllegalArgumentException("緊急聯絡人不可設定為本人之手機號碼");
         }
 
         if (request.getNationalId() != null && !request.getNationalId().isBlank()) {
@@ -53,7 +70,6 @@ public class UserService {
                 .phone(cleanPhone)
                 .email(request.getEmail())
                 .nationalId(request.getNationalId())
-                .emergencyContactPhone(request.getEmergencyContactPhone())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .nickname(request.getNickname())
                 .gender(request.getGender())
@@ -65,6 +81,14 @@ public class UserService {
 
         User savedUser = userRepository.save(user);
 
+        // 註冊時同時寫入第一筆緊急聯絡人至 emergency_contacts 資料表
+        EmergencyContact initialContact = EmergencyContact.builder()
+                .user(savedUser)
+                .name(contactName)
+                .phone(contactPhone)
+                .build();
+        EmergencyContact savedContact = emergencyContactRepository.save(initialContact);
+
         // 冷啟動：註冊成功時自動建立第一筆「初始活躍紀錄」
         LoginRecord initialRecord = LoginRecord.builder()
                 .user(savedUser)
@@ -73,8 +97,9 @@ public class UserService {
                 .build();
         loginRecordRepository.save(initialRecord);
 
-        log.info("🎉 新使用者註冊成功：{} (ID: {})，已建立初始打卡活躍紀錄。", savedUser.getNickname(), savedUser.getId());
-        return UserResponse.fromEntity(savedUser);
+        log.info("🎉 新使用者註冊成功：{} (ID: {})，首位緊急聯絡人：{} ({})，已建立初始打卡活躍紀錄。",
+                savedUser.getNickname(), savedUser.getId(), savedContact.getName(), savedContact.getPhone());
+        return UserResponse.fromEntity(savedUser, List.of(EmergencyContactResponse.fromEntity(savedContact)));
     }
 
     @Transactional
@@ -109,7 +134,7 @@ public class UserService {
         loginRecordRepository.save(record);
 
         log.info("🔑 使用者登入成功：{} (ID: {})", savedUser.getNickname(), savedUser.getId());
-        return UserResponse.fromEntity(savedUser);
+        return UserResponse.fromEntity(savedUser, getEmergencyContactResponses(savedUser.getId()));
     }
 
     @Transactional(readOnly = true)
@@ -133,7 +158,7 @@ public class UserService {
         if (user == null) {
             throw new IllegalArgumentException("找不到該使用者");
         }
-        return UserResponse.fromEntity(user);
+        return UserResponse.fromEntity(user, getEmergencyContactResponses(user.getId()));
     }
 
     @Transactional
@@ -148,12 +173,11 @@ public class UserService {
         user.setNickname(request.getNickname());
         user.setEmail(request.getEmail());
         user.setNationalId(cleanNationalId);
-        user.setEmergencyContactPhone(request.getEmergencyContactPhone());
         user.setGender(request.getGender());
         user.setBirthdate(request.getBirthdate());
 
         User updatedUser = userRepository.save(user);
-        return UserResponse.fromEntity(updatedUser);
+        return UserResponse.fromEntity(updatedUser, getEmergencyContactResponses(updatedUser.getId()));
     }
 
     @Transactional
@@ -168,37 +192,6 @@ public class UserService {
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
         log.info("🔑 使用者 [{}] 成功變更登入密碼", user.getPhone());
-    }
-
-    @Transactional
-    public UserResponse updateEmergencyContact(UUID userId, String phone, String emergencyContactPhone) {
-        User user = null;
-        if (userId != null) {
-            user = userRepository.findById(userId).orElse(null);
-        }
-        if (user == null && phone != null && !phone.isBlank()) {
-            String cleanPhone = phone.trim();
-            user = userRepository.findByPhone(cleanPhone).orElse(null);
-            if (user != null) {
-                log.info("🔄 updateEmergencyContact: 透過手機門號 [{}] 自動找回對應使用者 (ID: {})", cleanPhone, user.getId());
-            }
-        }
-        if (user == null) {
-            throw new IllegalArgumentException("找不到該使用者");
-        }
-
-        if (emergencyContactPhone != null && !emergencyContactPhone.isBlank()) {
-            String cleanEmergency = emergencyContactPhone.trim();
-            if (cleanEmergency.equals(user.getPhone().trim())) {
-                throw new IllegalArgumentException("緊急聯絡人不可設定為本人之手機號碼");
-            }
-            emergencyContactPhone = cleanEmergency;
-        }
-
-        user.setEmergencyContactPhone(emergencyContactPhone);
-        User updated = userRepository.save(user);
-        log.info("📞 使用者 [{}] 成功變更緊急聯絡人電話為 [{}]", user.getPhone(), emergencyContactPhone);
-        return UserResponse.fromEntity(updated);
     }
 
     /**
@@ -338,6 +331,6 @@ public class UserService {
 
         log.info("🧪 [測試模式] 已將使用者 [{}] 的最後活躍時間調回 {} 小時前: {}", 
                 user.getNickname(), hoursAgo, user.getLastActiveAt());
-        return UserResponse.fromEntity(savedUser);
+        return UserResponse.fromEntity(savedUser, getEmergencyContactResponses(savedUser.getId()));
     }
 }

@@ -40,12 +40,29 @@ interface ImsaApiService {
         @Body request: UserPasswordChangeRequest
     ): Response<MessageResponse>
 
-    @PUT("api/users/{id}/emergency-contact")
+    @GET("api/users/{userId}/emergency-contacts")
+    suspend fun getEmergencyContacts(
+        @Path("userId") userId: String
+    ): Response<List<EmergencyContactResponse>>
+
+    @POST("api/users/{userId}/emergency-contacts")
+    suspend fun addEmergencyContact(
+        @Path("userId") userId: String,
+        @Body request: EmergencyContactRequest
+    ): Response<EmergencyContactResponse>
+
+    @PUT("api/users/{userId}/emergency-contacts/{contactId}")
     suspend fun updateEmergencyContact(
-        @Path("id") id: String,
-        @Query("phone") phone: String? = null,
-        @Body request: UserEmergencyContactUpdateRequest
-    ): Response<UserResponse>
+        @Path("userId") userId: String,
+        @Path("contactId") contactId: String,
+        @Body request: EmergencyContactRequest
+    ): Response<EmergencyContactResponse>
+
+    @DELETE("api/users/{userId}/emergency-contacts/{contactId}")
+    suspend fun deleteEmergencyContact(
+        @Path("userId") userId: String,
+        @Path("contactId") contactId: String
+    ): Response<Map<String, String>>
 
     @POST("api/users/{id}/check-in")
     suspend fun checkIn(

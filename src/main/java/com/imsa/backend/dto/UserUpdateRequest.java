@@ -4,20 +4,22 @@ import com.imsa.backend.entity.enums.Gender;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
-import jakarta.validation.constraints.Pattern;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class UserUpdateRequest {
 
     private String email;
 
     private String nationalId;
-
-    @Pattern(regexp = "^$|^09\\d{8}$", message = "緊急聯絡電話需為 09 開頭之 10 碼手機格式")
-    private String emergencyContactPhone;
 
     @NotBlank(message = "暱稱不能為空")
     private String nickname;
