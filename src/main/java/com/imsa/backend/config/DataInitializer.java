@@ -107,9 +107,25 @@ public class DataInitializer implements CommandLineRunner {
 
         // ==========================================
         // 確保 emergency_contacts 內一定有 0909280630 (預設緊急聯絡人)
+        // 並主動清理測試帳號多餘的非預設緊急聯絡人，確保環境絕對純淨
         // ==========================================
-        Optional<EmergencyContact> contactOpt = emergencyContactRepository.findByUserIdAndPhone(targetUser.getId(), TEST_USER_EMERGENCY);
-        if (contactOpt.isEmpty()) {
+        List<EmergencyContact> existingContacts = emergencyContactRepository.findByUserIdOrderByCreatedAtAsc(targetUser.getId());
+
+        // 1. 清理非預設聯絡人 (非 0909280630 之所有其他聯絡人)
+        List<EmergencyContact> nonDefaultContacts = existingContacts.stream()
+                .filter(c -> !TEST_USER_EMERGENCY.equals(c.getPhone()))
+                .toList();
+        if (!nonDefaultContacts.isEmpty()) {
+            emergencyContactRepository.deleteAll(nonDefaultContacts);
+            log.info("🧹 [DataInitializer] 已清理測試帳號多餘的緊急聯絡人共 {} 筆", nonDefaultContacts.size());
+        }
+
+        // 2. 確保預設聯絡人 (0909280630) 存在且名稱正確
+        Optional<EmergencyContact> defaultContactOpt = existingContacts.stream()
+                .filter(c -> TEST_USER_EMERGENCY.equals(c.getPhone()))
+                .findFirst();
+
+        if (defaultContactOpt.isEmpty()) {
             EmergencyContact contact = EmergencyContact.builder()
                     .user(targetUser)
                     .name(TEST_USER_EMERGENCY_NAME)
@@ -118,7 +134,7 @@ public class DataInitializer implements CommandLineRunner {
             emergencyContactRepository.save(contact);
             log.info("🌱 [DataInitializer] 測試帳號緊急聯絡人不存在，已建立預設聯絡人：{} ({})", TEST_USER_EMERGENCY_NAME, TEST_USER_EMERGENCY);
         } else {
-            EmergencyContact contact = contactOpt.get();
+            EmergencyContact contact = defaultContactOpt.get();
             if (!TEST_USER_EMERGENCY_NAME.equals(contact.getName())) {
                 contact.setName(TEST_USER_EMERGENCY_NAME);
                 emergencyContactRepository.save(contact);
