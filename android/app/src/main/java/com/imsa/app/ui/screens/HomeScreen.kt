@@ -55,6 +55,9 @@ fun HomeScreen(
     var showDeleteDialog by remember { mutableStateOf(false) }
     var deletingContact by remember { mutableStateOf<EmergencyContactResponse?>(null) }
 
+    // 緊急聯絡人名單伸縮狀態 (預設收折)
+    var isContactsExpanded by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -197,7 +200,7 @@ fun HomeScreen(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // 3. 緊急聯絡人管理卡片 (CRUD)
+            // 3. 緊急聯絡人管理卡片 (CRUD，支援下拉伸縮)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -209,7 +212,22 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        // 點擊左側/標題區域可切換展開與收折 (伸縮箭頭：往右為收合、往下為展開)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { isContactsExpanded = !isContactsExpanded }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isContactsExpanded) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowRight,
+                                contentDescription = if (isContactsExpanded) "收合名單" else "展開名單",
+                                tint = Slate700,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Icon(Icons.Default.Shield, null, tint = PrimaryGreenDark, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
@@ -231,106 +249,118 @@ fun HomeScreen(
                             ) {
                                 Icon(Icons.Default.Add, null, modifier = Modifier.size(15.dp), tint = PrimaryGreenDark)
                                 Spacer(modifier = Modifier.width(2.dp))
-                                Text("＋ 新增", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryGreenDark)
+                                Text("新增", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PrimaryGreenDark)
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    // 下拉展開之聯絡人清單 (即使只有 1 筆也能伸縮)
+                    AnimatedVisibility(visible = isContactsExpanded) {
+                        Column {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            HorizontalDivider(color = Slate200)
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                    if (state.emergencyContacts.isEmpty()) {
-                        Text("尚未設定緊急聯絡人", fontSize = 12.sp, color = Slate400, modifier = Modifier.padding(vertical = 4.dp))
-                    } else {
-                        state.emergencyContacts.forEachIndexed { index, contact ->
-                            if (index > 0) {
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Slate200)
+                            if (state.emergencyContacts.isEmpty()) {
+                                Text(
+                                    "尚未設定緊急聯絡人",
+                                    fontSize = 12.sp,
+                                    color = Slate400,
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                            } else {
+                                state.emergencyContacts.forEachIndexed { index, contact ->
+                                    if (index > 0) {
+                                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Slate200)
+                                    }
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(vertical = 2.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Surface(
+                                                color = PrimaryGreen.copy(alpha = 0.12f),
+                                                shape = RoundedCornerShape(4.dp)
+                                            ) {
+                                                Text(
+                                                    text = "#${index + 1}",
+                                                    fontSize = 10.sp,
+                                                    color = PrimaryGreenDark,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Column {
+                                                Text(
+                                                    text = contact.name,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = Slate900
+                                                )
+                                                Text(
+                                                    text = contact.phone,
+                                                    fontSize = 12.sp,
+                                                    color = Slate500
+                                                )
+                                            }
+                                        }
+
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            IconButton(
+                                                onClick = {
+                                                    editingContact = contact
+                                                    editContactName = contact.name
+                                                    editContactPhone = contact.phone
+                                                    showEditDialog = true
+                                                },
+                                                enabled = !isOffline,
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Edit,
+                                                    contentDescription = "編輯聯絡人",
+                                                    tint = if (isOffline) Slate400 else Slate700,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            }
+
+                                            val canDelete = state.emergencyContacts.size > 1 && !isOffline
+                                            IconButton(
+                                                onClick = {
+                                                    deletingContact = contact
+                                                    showDeleteDialog = true
+                                                },
+                                                enabled = canDelete,
+                                                modifier = Modifier.size(28.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Delete,
+                                                    contentDescription = if (canDelete) "刪除聯絡人" else "至少保留一位",
+                                                    tint = if (canDelete) AlertRed else Slate400,
+                                                    modifier = Modifier.size(15.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
                             }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Surface(
-                                        color = PrimaryGreen.copy(alpha = 0.12f),
-                                        shape = RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "#${index + 1}",
-                                            fontSize = 10.sp,
-                                            color = PrimaryGreenDark,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = contact.name,
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = Slate900
-                                        )
-                                        Text(
-                                            text = contact.phone,
-                                            fontSize = 12.sp,
-                                            color = Slate500
-                                        )
-                                    }
-                                }
 
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(
-                                        onClick = {
-                                            editingContact = contact
-                                            editContactName = contact.name
-                                            editContactPhone = contact.phone
-                                            showEditDialog = true
-                                        },
-                                        enabled = !isOffline,
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Edit,
-                                            contentDescription = "編輯聯絡人",
-                                            tint = if (isOffline) Slate400 else Slate700,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                    }
-
-                                    val canDelete = state.emergencyContacts.size > 1 && !isOffline
-                                    IconButton(
-                                        onClick = {
-                                            deletingContact = contact
-                                            showDeleteDialog = true
-                                        },
-                                        enabled = canDelete,
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = if (canDelete) "刪除聯絡人" else "至少保留一位",
-                                            tint = if (canDelete) AlertRed else Slate400,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                    }
-                                }
+                            if (state.emergencyContacts.size == 1) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "💡 防護防呆：至少需保留 1 位緊急聯絡人，無法刪除唯一個人選。",
+                                    fontSize = 10.sp,
+                                    color = Slate500
+                                )
                             }
                         }
-                    }
-
-                    if (state.emergencyContacts.size == 1) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "💡 防護防呆：至少需保留 1 位緊急聯絡人，無法刪除唯一個人選。",
-                            fontSize = 10.sp,
-                            color = Slate500
-                        )
                     }
                 }
             }
@@ -714,6 +744,7 @@ fun HomeScreen(
                 Button(
                     onClick = {
                         onAddEmergencyContact(newContactName, newContactPhone)
+                        isContactsExpanded = true
                         showAddDialog = false
                     },
                     enabled = isAddValid,
